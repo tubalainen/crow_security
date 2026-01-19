@@ -7,6 +7,6 @@
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/tubalainen/crow_shepherd/issues",
   "requirements": ["crow_security_ng>=0.1.4"],
-  "version": "0.0.3",
+  "version": "0.0.4",
   "integration_type": "hub"
 }
