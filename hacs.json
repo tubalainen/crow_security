@@ -1,0 +1,8 @@
+{
+  "name": "Crow Shepherd Alarm",
+  "hacs": "1.6.0",
+  "homeassistant": "2024.1.0",
+  "render_readme": true,
+  "zip_release": true,
+  "filename": "crow_shepherd.zip"
+}
