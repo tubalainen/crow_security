@@ -1,0 +1,12 @@
+{
+  "domain": "crow_shepherd",
+  "name": "Crow Shepherd Alarm",
+  "codeowners": ["@tubalainen"],
+  "config_flow": true,
+  "documentation": "https://github.com/tubalainen/crow_shepherd",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/tubalainen/crow_shepherd/issues",
+  "requirements": ["crow_security_ng>=0.1.0"],
+  "version": "1.0.0",
+  "integration_type": "hub"
+}
