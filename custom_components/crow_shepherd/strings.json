@@ -1,0 +1,104 @@
+{
+  "title": "Crow Shepherd Alarm",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Crow Cloud",
+        "description": "Enter your Crow Cloud account credentials and panel MAC address.",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "panel_mac": "Panel MAC Address"
+        },
+        "data_description": {
+          "panel_mac": "Enter with or without separators (e.g., AABBCCDDEEFF or AA:BB:CC:DD:EE:FF)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthentication Required",
+        "description": "The Crow Shepherd integration needs to re-authenticate your account.",
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid email or password",
+      "cannot_connect": "Failed to connect to Crow Cloud. Please check your internet connection.",
+      "no_panel": "No alarm panel found with the specified MAC address. Verify the MAC is correct.",
+      "invalid_mac": "Invalid MAC address format. Enter 12 hex characters (e.g., AABBCCDDEEFF or AA:BB:CC:DD:EE:FF)",
+      "unknown": "An unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "This panel is already configured",
+      "reauth_successful": "Reauthentication successful"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Crow Shepherd Options",
+        "description": "Configure the Crow Shepherd integration settings.",
+        "data": {
+          "scan_interval": "Update interval (seconds)",
+          "panel_code": "Panel Code"
+        }
+      }
+    }
+  },
+  "entity": {
+    "alarm_control_panel": {
+      "crow_shepherd": {
+        "name": "Alarm Panel"
+      }
+    },
+    "binary_sensor": {
+      "zone": {
+        "name": "{zone_name}"
+      }
+    },
+    "switch": {
+      "output": {
+        "name": "{output_name}"
+      }
+    },
+    "sensor": {
+      "last_event": {
+        "name": "Last Event"
+      },
+      "events_today": {
+        "name": "Events Today"
+      },
+      "zone_battery": {
+        "name": "{zone_name} Battery"
+      }
+    }
+  },
+  "services": {
+    "bypass_zone": {
+      "name": "Bypass Zone",
+      "description": "Bypass or unbypass a zone.",
+      "fields": {
+        "zone_id": {
+          "name": "Zone ID",
+          "description": "The ID of the zone to bypass."
+        },
+        "bypass": {
+          "name": "Bypass",
+          "description": "True to bypass, false to unbypass."
+        }
+      }
+    },
+    "trigger_camera_snapshot": {
+      "name": "Trigger Camera Snapshot",
+      "description": "Trigger a camera to take a new snapshot.",
+      "fields": {
+        "zone_id": {
+          "name": "Zone ID",
+          "description": "The ID of the camera zone."
+        }
+      }
+    }
+  }
+}
