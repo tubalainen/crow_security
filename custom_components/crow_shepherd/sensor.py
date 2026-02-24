@@ -71,7 +71,7 @@ async def async_setup_entry(
         DATA_COORDINATOR
     ]
 
-    entities: list[CrowShepherdMeasurementSensor] = []
+    entities: list[CrowShepherdMeasurementSensor | CrowShepherdBatteryVoltageSensor] = []
     for measurement in coordinator.data.measurements:
         dect_interface = measurement.dect_interface
         if dect_interface not in _DECT_MAP:
@@ -84,7 +84,90 @@ async def async_setup_entry(
             continue
         entities.append(CrowShepherdMeasurementSensor(coordinator, measurement))
 
+    # Battery voltage sensors — zones
+    for zone in coordinator.data.zones:
+        if zone.battery_voltage is not None:
+            entities.append(
+                CrowShepherdBatteryVoltageSensor(coordinator, zone.id, "zone")
+            )
+
+    # Battery voltage sensors — outputs
+    for output in coordinator.data.outputs:
+        if output.battery_voltage is not None:
+            entities.append(
+                CrowShepherdBatteryVoltageSensor(coordinator, output.id, "output")
+            )
+
     async_add_entities(entities)
+
+
+class CrowShepherdBatteryVoltageSensor(
+    CoordinatorEntity[CrowShepherdCoordinator],
+    SensorEntity,
+):
+    """Sensor showing the battery voltage of a Crow zone or output device."""
+
+    _attr_has_entity_name = True
+    _attr_device_class = SensorDeviceClass.VOLTAGE
+    _attr_native_unit_of_measurement = "V"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 3
+
+    def __init__(
+        self,
+        coordinator: CrowShepherdCoordinator,
+        device_id: int,
+        device_type: str,
+    ) -> None:
+        """Initialise entity."""
+        super().__init__(coordinator)
+
+        self._device_id = device_id
+        self._device_type = device_type
+
+        self._attr_unique_id = (
+            f"{coordinator.hub.mac}"
+            f"_{self._device_type}"
+            f"_{self._device_id}"
+            f"_battery_voltage"
+        )
+
+        device_name = _device_name(coordinator, self._device_id, self._device_type)
+        self._attr_name = f"{device_name} Battery Voltage"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Group under the panel device."""
+        panel = self.coordinator.hub.panel
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.coordinator.hub.mac)},
+            name=panel.name,
+            manufacturer="Crow",
+            model=panel.firmware_version or "Alarm Panel",
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the current battery voltage."""
+        if self._device_type == "zone":
+            obj = next(
+                (z for z in self.coordinator.data.zones if z.id == self._device_id),
+                None,
+            )
+        else:
+            obj = next(
+                (o for o in self.coordinator.data.outputs if o.id == self._device_id),
+                None,
+            )
+        return obj.battery_voltage if obj is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return extra state attributes."""
+        return {
+            "device_id": self._device_id,
+            "device_type": self._device_type,
+        }
 
 
 class CrowShepherdMeasurementSensor(

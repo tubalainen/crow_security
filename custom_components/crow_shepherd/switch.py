@@ -92,6 +92,7 @@ class CrowShepherdOutputSwitch(
             "output_type": output.output_type,
             "tamper": output.tamper_alarm,
             "battery_low": output.battery_low,
+            "battery_voltage": output.battery_voltage,
             "rssi": output.rssi,
         }
 
