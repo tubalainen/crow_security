@@ -17,8 +17,9 @@ DEFAULT_SCAN_INTERVAL: Final = 30
 PLATFORMS: Final = [
     "alarm_control_panel",
     "binary_sensor",
-    "switch",
+    "image",
     "sensor",
+    "switch",
 ]
 
 # hass.data keys

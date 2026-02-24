@@ -54,6 +54,10 @@
     }
   },
   "services": {
+    "fetch_camera_snapshot": {
+      "name": "Fetch camera snapshot",
+      "description": "Downloads the latest snapshot from a PIR camera zone and updates the image entity."
+    },
     "bypass_zone": {
       "name": "Bypass Zone",
       "description": "Bypass or unbypass a zone on the alarm panel.",
