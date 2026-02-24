@@ -56,8 +56,9 @@ class CrowShepherdCoordinator(DataUpdateCoordinator[CrowData]):
             outputs = await panel.get_outputs()
             try:
                 measurements = await panel.get_measurements()
-            except Exception:  # noqa: BLE001
+            except Exception as err:  # noqa: BLE001
                 # Measurements are optional — don't fail the whole refresh
+                _LOGGER.warning("Could not fetch measurements (non-fatal): %s", err)
                 measurements = []
 
             return CrowData(

@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Any
+
+from crow_security_ng.models import Measurement
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -20,15 +23,42 @@ from .coordinator import CrowShepherdCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-# Map measurement type strings to HA SensorDeviceClass + unit
-_MEASUREMENT_TYPE_MAP: dict[str, tuple[SensorDeviceClass, str]] = {
-    "temperature": (SensorDeviceClass.TEMPERATURE, "°C"),
-    "temp": (SensorDeviceClass.TEMPERATURE, "°C"),
-    "humidity": (SensorDeviceClass.HUMIDITY, "%"),
-    "battery": (SensorDeviceClass.BATTERY, "%"),
-    "signal": (SensorDeviceClass.SIGNAL_STRENGTH, "dBm"),
-    "rssi": (SensorDeviceClass.SIGNAL_STRENGTH, "dBm"),
+
+@dataclass(frozen=True)
+class _DectConfig:
+    """Configuration for one DECT interface type."""
+
+    field: str                          # Attribute name on Measurement
+    device_class: SensorDeviceClass | None
+    unit: str | None
+    label: str                          # Appended to zone/output name
+
+
+# Maps dect_interface int → sensor configuration.
+# Only well-documented interface types are listed; anything else is skipped.
+_DECT_MAP: dict[int, _DectConfig] = {
+    32533: _DectConfig("temperature",  SensorDeviceClass.TEMPERATURE,          "°C",  "Temperature"),
+    32532: _DectConfig("humidity",     SensorDeviceClass.HUMIDITY,             "%",   "Humidity"),
+    32535: _DectConfig("air_pressure", SensorDeviceClass.ATMOSPHERIC_PRESSURE, "hPa", "Air Pressure"),
+    61:    _DectConfig("gas_level",    None,                                   None,  "Gas Level"),
 }
+
+
+def _device_name(coordinator: CrowShepherdCoordinator, device_id: int, device_type: str) -> str:
+    """Look up the human-readable name of a zone or output by its device_id."""
+    if device_type == "zone":
+        zone = next(
+            (z for z in coordinator.data.zones if z.id == device_id), None
+        )
+        if zone:
+            return zone.name
+    elif device_type == "output":
+        output = next(
+            (o for o in coordinator.data.outputs if o.id == device_id), None
+        )
+        if output:
+            return output.name
+    return f"{device_type.capitalize()} {device_id}"
 
 
 async def async_setup_entry(
@@ -40,17 +70,28 @@ async def async_setup_entry(
     coordinator: CrowShepherdCoordinator = hass.data[DOMAIN][entry.entry_id][
         DATA_COORDINATOR
     ]
-    async_add_entities(
-        CrowShepherdMeasurementSensor(coordinator, idx)
-        for idx, _ in enumerate(coordinator.data.measurements)
-    )
+
+    entities: list[CrowShepherdMeasurementSensor] = []
+    for measurement in coordinator.data.measurements:
+        dect_interface = measurement.dect_interface
+        if dect_interface not in _DECT_MAP:
+            _LOGGER.debug(
+                "Skipping unknown dect_interface %s for device %s/%s",
+                dect_interface,
+                measurement.device_type,
+                measurement.device_id,
+            )
+            continue
+        entities.append(CrowShepherdMeasurementSensor(coordinator, measurement))
+
+    async_add_entities(entities)
 
 
 class CrowShepherdMeasurementSensor(
     CoordinatorEntity[CrowShepherdCoordinator],
     SensorEntity,
 ):
-    """Sensor showing a measurement value from the Crow panel."""
+    """Sensor showing one DECT measurement value from a Crow zone or output."""
 
     _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.MEASUREMENT
@@ -58,28 +99,41 @@ class CrowShepherdMeasurementSensor(
     def __init__(
         self,
         coordinator: CrowShepherdCoordinator,
-        index: int,
+        measurement: Measurement,
     ) -> None:
-        """Initialise entity using the list index to identify the measurement."""
-        super().__init__(coordinator)
-        # Use index + stable initial values to set the unique_id and display name
-        measurement = coordinator.data.measurements[index]
-        measurement_id = getattr(measurement, "id", index)
-        self._measurement_id = measurement_id
-        self._attr_unique_id = f"{coordinator.hub.mac}_measurement_{measurement_id}"
-        self._attr_name = getattr(measurement, "name", f"Measurement {measurement_id}")
+        """Initialise entity.
 
-        # Set device class and unit from measurement type
-        mtype = str(getattr(measurement, "type", "")).lower()
-        for key, (device_class, unit) in _MEASUREMENT_TYPE_MAP.items():
-            if key in mtype:
-                self._attr_device_class = device_class
-                self._attr_native_unit_of_measurement = unit
-                break
+        The triple (device_id, device_type, dect_interface) uniquely identifies
+        one sensor reading within a panel.
+        """
+        super().__init__(coordinator)
+
+        self._device_id: int = measurement.device_id
+        self._device_type: str = measurement.device_type
+        self._dect_interface: int = measurement.dect_interface
+
+        cfg = _DECT_MAP[self._dect_interface]
+
+        # Stable unique_id: mac + device type + device id + interface type
+        self._attr_unique_id = (
+            f"{coordinator.hub.mac}"
+            f"_{self._device_type}"
+            f"_{self._device_id}"
+            f"_{self._dect_interface}"
+        )
+
+        # Human-readable name: "Garage Temperature", "Cam Hall OV Humidity", etc.
+        device_name = _device_name(coordinator, self._device_id, self._device_type)
+        self._attr_name = f"{device_name} {cfg.label}"
+
+        if cfg.device_class is not None:
+            self._attr_device_class = cfg.device_class
+        if cfg.unit is not None:
+            self._attr_native_unit_of_measurement = cfg.unit
 
     @property
     def device_info(self) -> DeviceInfo:
-        """Return device info."""
+        """Group under the panel device."""
         panel = self.coordinator.hub.panel
         return DeviceInfo(
             identifiers={(DOMAIN, self.coordinator.hub.mac)},
@@ -88,30 +142,33 @@ class CrowShepherdMeasurementSensor(
             model=panel.firmware_version or "Alarm Panel",
         )
 
-    def _get_measurement(self) -> Any | None:
-        """Return the current measurement object from coordinator data."""
+    def _get_measurement(self) -> Measurement | None:
+        """Return the current Measurement from coordinator data.
+
+        Matches on all three identifying fields: device_id, device_type,
+        and dect_interface.
+        """
         return next(
             (
                 m
                 for m in self.coordinator.data.measurements
-                if getattr(m, "id", None) == self._measurement_id
+                if (
+                    m.device_id == self._device_id
+                    and m.device_type == self._device_type
+                    and m.dect_interface == self._dect_interface
+                )
             ),
             None,
         )
 
     @property
-    def native_value(self) -> float | str | None:
-        """Return the measurement value."""
+    def native_value(self) -> float | int | None:
+        """Return the sensor value by reading the correct field for this interface type."""
         measurement = self._get_measurement()
         if measurement is None:
             return None
-        value = getattr(measurement, "value", None)
-        if value is None:
-            return None
-        try:
-            return float(value)
-        except (ValueError, TypeError):
-            return str(value)
+        cfg = _DECT_MAP[self._dect_interface]
+        return getattr(measurement, cfg.field, None)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -120,6 +177,10 @@ class CrowShepherdMeasurementSensor(
         if measurement is None:
             return {}
         return {
-            "measurement_id": self._measurement_id,
-            "measurement_type": getattr(measurement, "type", None),
+            "device_id": self._device_id,
+            "device_type": self._device_type,
+            "dect_interface": self._dect_interface,
+            "panel_time": measurement.panel_time.isoformat()
+            if measurement.panel_time
+            else None,
         }
