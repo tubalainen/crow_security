@@ -104,6 +104,7 @@ class CrowShepherdZoneSensor(
             "bypassed": zone.bypass,
             "tamper": zone.tamper_alarm,
             "battery_low": zone.battery_low,
+            "battery_voltage": zone.battery_voltage,
             "active": zone.active,
             "rssi": zone.rssi,
         }
