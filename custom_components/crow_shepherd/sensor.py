@@ -1,4 +1,4 @@
-"""Sensor platform for Crow Shepherd measurements and status."""
+"""Sensor platform for Crow Shepherd measurements."""
 from __future__ import annotations
 
 import logging
@@ -13,11 +13,22 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DATA_HUB, DOMAIN
-from .hub import CrowHub
+from .const import DATA_COORDINATOR, DOMAIN
+from .coordinator import CrowShepherdCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+# Map measurement type strings to HA SensorDeviceClass + unit
+_MEASUREMENT_TYPE_MAP: dict[str, tuple[SensorDeviceClass, str]] = {
+    "temperature": (SensorDeviceClass.TEMPERATURE, "°C"),
+    "temp": (SensorDeviceClass.TEMPERATURE, "°C"),
+    "humidity": (SensorDeviceClass.HUMIDITY, "%"),
+    "battery": (SensorDeviceClass.BATTERY, "%"),
+    "signal": (SensorDeviceClass.SIGNAL_STRENGTH, "dBm"),
+    "rssi": (SensorDeviceClass.SIGNAL_STRENGTH, "dBm"),
+}
 
 
 async def async_setup_entry(
@@ -25,102 +36,79 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Crow Shepherd sensors from config entry."""
-    hub: CrowHub = hass.data[DOMAIN][entry.entry_id][DATA_HUB]
-
-    entities: list[SensorEntity] = []
-
-    # Get measurements from the hub
-    measurements = await hub.get_measurements()
-    
-    for measurement in measurements:
-        measurement_id = (
-            measurement.get("id") or 
-            measurement.get("measurementId") or 
-            measurement.get("_id")
-        )
-        if measurement_id:
-            entities.append(CrowShepherdMeasurementSensor(hub, measurement))
-
-    # Add zone battery sensors
-    zones = await hub.get_devices()
-    for zone in zones:
-        zone_id = zone.get("id") or zone.get("zoneId") or zone.get("zone_id")
-        battery = (
-            zone.get("battery") or 
-            zone.get("batteryLevel") or 
-            zone.get("battery_level")
-        )
-        if zone_id and battery is not None:
-            entities.append(CrowShepherdZoneBatterySensor(hub, zone))
-
-    async_add_entities(entities)
+    """Set up sensor entities from a config entry."""
+    coordinator: CrowShepherdCoordinator = hass.data[DOMAIN][entry.entry_id][
+        DATA_COORDINATOR
+    ]
+    async_add_entities(
+        CrowShepherdMeasurementSensor(coordinator, idx)
+        for idx, _ in enumerate(coordinator.data.measurements)
+    )
 
 
-class CrowShepherdMeasurementSensor(SensorEntity):
-    """Sensor showing measurements from the alarm system."""
+class CrowShepherdMeasurementSensor(
+    CoordinatorEntity[CrowShepherdCoordinator],
+    SensorEntity,
+):
+    """Sensor showing a measurement value from the Crow panel."""
 
     _attr_has_entity_name = True
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
-    def __init__(self, hub: CrowHub, measurement_data: dict[str, Any]) -> None:
-        """Initialize the sensor."""
-        self._hub = hub
-        self._measurement_data = measurement_data
-        self._measurement_id = (
-            measurement_data.get("id") or 
-            measurement_data.get("measurementId") or 
-            measurement_data.get("_id")
-        )
-        self._attr_unique_id = f"{hub.mac}_measurement_{self._measurement_id}"
-        
-        # Set device class based on measurement type
-        measurement_type = measurement_data.get("type", "").lower()
-        if "temperature" in measurement_type or "temp" in measurement_type:
-            self._attr_device_class = SensorDeviceClass.TEMPERATURE
-            self._attr_native_unit_of_measurement = "°C"
-            self._attr_state_class = SensorStateClass.MEASUREMENT
-        elif "humidity" in measurement_type:
-            self._attr_device_class = SensorDeviceClass.HUMIDITY
-            self._attr_native_unit_of_measurement = "%"
-            self._attr_state_class = SensorStateClass.MEASUREMENT
-        elif "battery" in measurement_type:
-            self._attr_device_class = SensorDeviceClass.BATTERY
-            self._attr_native_unit_of_measurement = "%"
-            self._attr_state_class = SensorStateClass.MEASUREMENT
-        elif "signal" in measurement_type or "rssi" in measurement_type:
-            self._attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH
-            self._attr_native_unit_of_measurement = "dBm"
-            self._attr_state_class = SensorStateClass.MEASUREMENT
+    def __init__(
+        self,
+        coordinator: CrowShepherdCoordinator,
+        index: int,
+    ) -> None:
+        """Initialise entity using the list index to identify the measurement."""
+        super().__init__(coordinator)
+        # Use index + stable initial values to set the unique_id and display name
+        measurement = coordinator.data.measurements[index]
+        measurement_id = getattr(measurement, "id", index)
+        self._measurement_id = measurement_id
+        self._attr_unique_id = f"{coordinator.hub.mac}_measurement_{measurement_id}"
+        self._attr_name = getattr(measurement, "name", f"Measurement {measurement_id}")
 
-    @property
-    def name(self) -> str:
-        """Return the name of the sensor."""
-        return (
-            self._measurement_data.get("name") or 
-            self._measurement_data.get("measurementName") or 
-            f"Measurement {self._measurement_id}"
-        )
+        # Set device class and unit from measurement type
+        mtype = str(getattr(measurement, "type", "")).lower()
+        for key, (device_class, unit) in _MEASUREMENT_TYPE_MAP.items():
+            if key in mtype:
+                self._attr_device_class = device_class
+                self._attr_native_unit_of_measurement = unit
+                break
 
     @property
     def device_info(self) -> DeviceInfo:
         """Return device info."""
+        panel = self.coordinator.hub.panel
         return DeviceInfo(
-            identifiers={(DOMAIN, self._hub.mac)},
-            name=self._hub.panel.name if self._hub.panel else "Crow Shepherd",
+            identifiers={(DOMAIN, self.coordinator.hub.mac)},
+            name=panel.name,
             manufacturer="Crow",
-            model="Shepherd",
+            model=panel.firmware_version or "Alarm Panel",
+        )
+
+    def _get_measurement(self) -> Any | None:
+        """Return the current measurement object from coordinator data."""
+        return next(
+            (
+                m
+                for m in self.coordinator.data.measurements
+                if getattr(m, "id", None) == self._measurement_id
+            ),
+            None,
         )
 
     @property
-    def native_value(self) -> float | int | str | None:
+    def native_value(self) -> float | str | None:
         """Return the measurement value."""
-        value = self._measurement_data.get("value") or self._measurement_data.get("currentValue")
-        
+        measurement = self._get_measurement()
+        if measurement is None:
+            return None
+        value = getattr(measurement, "value", None)
         if value is None:
             return None
-        
         try:
-            # Try to return as number
             return float(value)
         except (ValueError, TypeError):
             return str(value)
@@ -128,99 +116,10 @@ class CrowShepherdMeasurementSensor(SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
-        attrs = {
+        measurement = self._get_measurement()
+        if measurement is None:
+            return {}
+        return {
             "measurement_id": self._measurement_id,
-            "measurement_type": self._measurement_data.get("type"),
+            "measurement_type": getattr(measurement, "type", None),
         }
-        
-        # Add zone info if available
-        zone_id = self._measurement_data.get("zoneId") or self._measurement_data.get("zone_id")
-        if zone_id:
-            attrs["zone_id"] = zone_id
-        
-        return attrs
-
-    async def async_update(self) -> None:
-        """Update measurement state."""
-        measurements = await self._hub.get_measurements()
-        
-        for measurement in measurements:
-            measurement_id = (
-                measurement.get("id") or 
-                measurement.get("measurementId") or 
-                measurement.get("_id")
-            )
-            if measurement_id == self._measurement_id:
-                self._measurement_data = measurement
-                break
-
-
-class CrowShepherdZoneBatterySensor(SensorEntity):
-    """Sensor showing zone battery level."""
-
-    _attr_has_entity_name = True
-    _attr_device_class = SensorDeviceClass.BATTERY
-    _attr_native_unit_of_measurement = "%"
-    _attr_state_class = SensorStateClass.MEASUREMENT
-
-    def __init__(self, hub: CrowHub, zone_data: dict[str, Any]) -> None:
-        """Initialize the sensor."""
-        self._hub = hub
-        self._zone_data = zone_data
-        self._zone_id = (
-            zone_data.get("id") or 
-            zone_data.get("zoneId") or 
-            zone_data.get("zone_id")
-        )
-        self._attr_unique_id = f"{hub.mac}_zone_{self._zone_id}_battery"
-
-    @property
-    def name(self) -> str:
-        """Return the name of the sensor."""
-        zone_name = (
-            self._zone_data.get("name") or 
-            self._zone_data.get("zoneName") or 
-            f"Zone {self._zone_id}"
-        )
-        return f"{zone_name} Battery"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device info."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._hub.mac)},
-            name=self._hub.panel.name if self._hub.panel else "Crow Shepherd",
-            manufacturer="Crow",
-            model="Shepherd",
-        )
-
-    @property
-    def native_value(self) -> int | None:
-        """Return the battery level."""
-        battery = (
-            self._zone_data.get("battery") or 
-            self._zone_data.get("batteryLevel") or 
-            self._zone_data.get("battery_level")
-        )
-        
-        if battery is None:
-            return None
-        
-        try:
-            return int(float(battery))
-        except (ValueError, TypeError):
-            return None
-
-    async def async_update(self) -> None:
-        """Update zone battery state."""
-        zones = await self._hub.get_devices()
-        
-        for zone in zones:
-            zone_id = (
-                zone.get("id") or 
-                zone.get("zoneId") or 
-                zone.get("zone_id")
-            )
-            if zone_id == self._zone_id:
-                self._zone_data = zone
-                break
