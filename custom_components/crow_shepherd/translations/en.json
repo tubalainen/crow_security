@@ -4,19 +4,21 @@
     "step": {
       "user": {
         "title": "Connect to Crow Cloud",
-        "description": "Enter your Crow Cloud account credentials and panel MAC address.",
+        "description": "Enter your Crow Cloud account credentials and the MAC address of your alarm panel.",
         "data": {
           "email": "Email",
           "password": "Password",
-          "panel_mac": "Panel MAC Address"
+          "panel_mac": "Panel MAC Address",
+          "panel_code": "Panel User Code (optional)"
         },
         "data_description": {
-          "panel_mac": "Enter with or without separators (e.g., AABBCCDDEEFF or AA:BB:CC:DD:EE:FF)"
+          "panel_mac": "Enter with or without separators — both AABBCCDDEEFF and AA:BB:CC:DD:EE:FF are accepted.",
+          "panel_code": "The numeric user code used to arm and disarm the panel. Leave blank if not required."
         }
       },
       "reauth_confirm": {
         "title": "Reauthentication Required",
-        "description": "The Crow Shepherd integration needs to re-authenticate your account.",
+        "description": "The Crow Shepherd integration needs to re-authenticate. Enter updated credentials below.",
         "data": {
           "email": "Email",
           "password": "Password"
@@ -24,79 +26,45 @@
       }
     },
     "error": {
-      "invalid_auth": "Invalid email or password",
-      "cannot_connect": "Failed to connect to Crow Cloud. Please check your internet connection.",
+      "invalid_auth": "Invalid email or password.",
+      "cannot_connect": "Failed to connect to Crow Cloud. Check your internet connection.",
       "no_panel": "No alarm panel found with the specified MAC address. Verify the MAC is correct.",
-      "invalid_mac": "Invalid MAC address format. Enter 12 hex characters (e.g., AABBCCDDEEFF or AA:BB:CC:DD:EE:FF)",
-      "unknown": "An unexpected error occurred"
+      "invalid_mac": "Invalid MAC address format. Enter 12 hex characters — e.g. 0013A1250A45 or 00:13:A1:25:0A:45.",
+      "unknown": "An unexpected error occurred."
     },
     "abort": {
-      "already_configured": "This panel is already configured",
-      "reauth_successful": "Reauthentication successful"
+      "already_configured": "This panel is already configured.",
+      "reauth_successful": "Reauthentication was successful."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Crow Shepherd Options",
-        "description": "Configure the Crow Shepherd integration settings.",
+        "description": "Adjust integration settings.",
         "data": {
           "scan_interval": "Update interval (seconds)",
-          "panel_code": "Panel Code"
+          "panel_code": "Panel User Code"
+        },
+        "data_description": {
+          "scan_interval": "How often to poll the Crow Cloud for updates (10–300 seconds).",
+          "panel_code": "The numeric user code used to arm and disarm the panel. Leave blank if not required."
         }
-      }
-    }
-  },
-  "entity": {
-    "alarm_control_panel": {
-      "crow_shepherd": {
-        "name": "Alarm Panel"
-      }
-    },
-    "binary_sensor": {
-      "zone": {
-        "name": "{zone_name}"
-      }
-    },
-    "switch": {
-      "output": {
-        "name": "{output_name}"
-      }
-    },
-    "sensor": {
-      "last_event": {
-        "name": "Last Event"
-      },
-      "events_today": {
-        "name": "Events Today"
-      },
-      "zone_battery": {
-        "name": "{zone_name} Battery"
       }
     }
   },
   "services": {
     "bypass_zone": {
       "name": "Bypass Zone",
-      "description": "Bypass or unbypass a zone.",
+      "description": "Bypass or unbypass a zone on the alarm panel.",
       "fields": {
         "zone_id": {
           "name": "Zone ID",
-          "description": "The ID of the zone to bypass."
+          "description": "The numeric ID of the zone to bypass or unbypass."
         },
         "bypass": {
           "name": "Bypass",
           "description": "True to bypass, false to unbypass."
-        }
-      }
-    },
-    "trigger_camera_snapshot": {
-      "name": "Trigger Camera Snapshot",
-      "description": "Trigger a camera to take a new snapshot.",
-      "fields": {
-        "zone_id": {
-          "name": "Zone ID",
-          "description": "The ID of the camera zone."
         }
       }
     }

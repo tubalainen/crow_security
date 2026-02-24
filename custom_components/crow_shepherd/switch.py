@@ -4,14 +4,18 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from crow_security_ng.exceptions import ResponseError
+from crow_security_ng.models import Output
+
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DATA_HUB, DOMAIN, OUTPUT_STATE_ON
-from .hub import CrowHub
+from .const import DATA_COORDINATOR, DOMAIN
+from .coordinator import CrowShepherdCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,117 +25,104 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Crow Shepherd switches from config entry."""
-    hub: CrowHub = hass.data[DOMAIN][entry.entry_id][DATA_HUB]
-
-    entities: list[CrowShepherdOutputSwitch] = []
-
-    # Get outputs from the hub
-    outputs = await hub.get_outputs()
-    
-    for output in outputs:
-        output_id = output.get("id") or output.get("outputId") or output.get("output_id")
-        if output_id:
-            entities.append(CrowShepherdOutputSwitch(hub, output))
-
-    async_add_entities(entities)
+    """Set up switch entities from a config entry."""
+    coordinator: CrowShepherdCoordinator = hass.data[DOMAIN][entry.entry_id][
+        DATA_COORDINATOR
+    ]
+    async_add_entities(
+        CrowShepherdOutputSwitch(coordinator, output)
+        for output in coordinator.data.outputs
+    )
 
 
-class CrowShepherdOutputSwitch(SwitchEntity):
-    """Representation of a Crow Shepherd output switch."""
+class CrowShepherdOutputSwitch(
+    CoordinatorEntity[CrowShepherdCoordinator],
+    SwitchEntity,
+):
+    """Switch representing a Crow output."""
 
     _attr_has_entity_name = True
 
-    def __init__(self, hub: CrowHub, output_data: dict[str, Any]) -> None:
-        """Initialize the output switch."""
-        self._hub = hub
-        self._output_data = output_data
-        self._output_id = (
-            output_data.get("id") or 
-            output_data.get("outputId") or 
-            output_data.get("output_id")
-        )
-        self._attr_unique_id = f"{hub.mac}_output_{self._output_id}"
-
-    @property
-    def output_id(self) -> str:
-        """Return the output ID."""
-        return self._output_id
-
-    @property
-    def name(self) -> str:
-        """Return the name of the switch."""
-        return (
-            self._output_data.get("name") or 
-            self._output_data.get("outputName") or 
-            f"Output {self._output_id}"
-        )
-
-    @property
-    def is_on(self) -> bool:
-        """Return true if the output is on."""
-        state = self._output_data.get("state") or self._output_data.get("status")
-        
-        if isinstance(state, bool):
-            return state
-        if isinstance(state, int):
-            return state == 1
-        if isinstance(state, str):
-            return state.lower() in (OUTPUT_STATE_ON, "1", "true", "active", "activated")
-        
-        return False
+    def __init__(
+        self,
+        coordinator: CrowShepherdCoordinator,
+        output: Output,
+    ) -> None:
+        """Initialise entity."""
+        super().__init__(coordinator)
+        self._output_id = output.id
+        self._attr_unique_id = f"{coordinator.hub.mac}_output_{output.id}"
+        self._attr_name = output.name
 
     @property
     def device_info(self) -> DeviceInfo:
         """Return device info."""
+        panel = self.coordinator.hub.panel
         return DeviceInfo(
-            identifiers={(DOMAIN, self._hub.mac)},
-            name=self._hub.panel.name if self._hub.panel else "Crow Shepherd",
+            identifiers={(DOMAIN, self.coordinator.hub.mac)},
+            name=panel.name,
             manufacturer="Crow",
-            model="Shepherd",
+            model=panel.firmware_version or "Alarm Panel",
         )
+
+    def _get_output(self) -> Output | None:
+        """Return the current Output object from coordinator data."""
+        return next(
+            (o for o in self.coordinator.data.outputs if o.id == self._output_id),
+            None,
+        )
+
+    @property
+    def is_on(self) -> bool:
+        """Return True when the output is active.
+
+        Output.state is a bool in crow_security_ng.
+        """
+        output = self._get_output()
+        return output.state if output is not None else False
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
-        attrs = {
-            "output_id": self._output_id,
-            "output_name": self._output_data.get("name") or self._output_data.get("outputName"),
+        output = self._get_output()
+        if output is None:
+            return {}
+        return {
+            "output_id": output.id,
+            "output_type": output.output_type,
+            "tamper": output.tamper_alarm,
+            "battery_low": output.battery_low,
+            "rssi": output.rssi,
         }
-        
-        # Add output type if available
-        output_type = self._output_data.get("type") or self._output_data.get("outputType")
-        if output_type:
-            attrs["output_type"] = output_type
-        
-        return attrs
-
-    async def async_update(self) -> None:
-        """Update output state."""
-        outputs = await self._hub.get_outputs()
-        
-        for output in outputs:
-            output_id = (
-                output.get("id") or 
-                output.get("outputId") or 
-                output.get("output_id")
-            )
-            if output_id == self._output_id:
-                self._output_data = output
-                break
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the output on."""
-        _LOGGER.debug("Turning on output %s", self._output_id)
-        success = await self._hub.set_output_state(self._output_id, True)
-        if success:
-            self._output_data["state"] = True
-            self.async_write_ha_state()
+        await self._set_state(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the output off."""
-        _LOGGER.debug("Turning off output %s", self._output_id)
-        success = await self._hub.set_output_state(self._output_id, False)
-        if success:
-            self._output_data["state"] = False
-            self.async_write_ha_state()
+        await self._set_state(False)
+
+    async def _set_state(self, state: bool) -> None:
+        """Send set-output-state command and refresh coordinator."""
+        try:
+            await self.coordinator.hub.panel.set_output_state(self._output_id, state)
+        except ResponseError as err:
+            _LOGGER.error(
+                "Output %s: API error %s setting state to %s: %s",
+                self._output_id,
+                err.status_code,
+                state,
+                err,
+            )
+            return
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.error(
+                "Output %s: unexpected error setting state to %s: %s",
+                self._output_id,
+                state,
+                err,
+            )
+            return
+
+        await self.coordinator.async_request_refresh()

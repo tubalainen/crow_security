@@ -1,224 +1,102 @@
-"""Hub for Crow Shepherd integration using crow_security library."""
+"""Hub for Crow Shepherd — thin wrapper around crow_security_ng Session/Panel."""
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
-from typing import Any, Callable
 
-import crow_security_ng as crow
-from crow_security_ng import Panel
-from crow_security_ng import ResponseError
+from crow_security_ng import Session
+from crow_security_ng.exceptions import AuthenticationError, ConnectionError, PanelNotFoundError
+from crow_security_ng.models import Panel
 
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
-from homeassistant.core import HomeAssistant
-from homeassistant.util import Throttle
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 
-from .const import CONF_PANEL_MAC, DOMAIN, SET_STATE_MAP, STATE_MAP
+from .const import CONF_PANEL_CODE, CONF_PANEL_MAC
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class CrowHub:
-    """Hub for managing connection to Crow Cloud."""
+    """Holds the authenticated Session and the resolved Panel object."""
 
-    def __init__(self, config: dict[str, Any], hass: HomeAssistant) -> None:
-        """Initialize the hub."""
-        self._hass = hass
-        self._mac = config[CONF_PANEL_MAC]
+    def __init__(
+        self,
+        email: str,
+        password: str,
+        mac: str,
+        panel_code: str | None = None,
+    ) -> None:
+        """Initialise hub; does NOT connect yet."""
+        self._mac = mac
+        self._panel_code = panel_code or None
+        self._session = Session(email, password)
         self._panel: Panel | None = None
-        self._devices: list[dict[str, Any]] | None = None
-        self._outputs: list[dict[str, Any]] | None = None
-        self._measurements: list[dict[str, Any]] | None = None
-        self._areas: list[dict[str, Any]] | None = None
-        self._subscriptions: dict[str, Callable] = {}
-        
-        _LOGGER.info("Initializing Crow Hub with MAC: %s", self._mac)
-        
-        self.session = crow.Session(
-            config[CONF_EMAIL],
-            config[CONF_PASSWORD]
-        )
+
+    # ------------------------------------------------------------------
+    # Public properties
+    # ------------------------------------------------------------------
 
     @property
     def mac(self) -> str:
-        """Return the panel MAC address."""
+        """Return the normalised panel MAC address."""
         return self._mac
 
     @property
-    def panel(self) -> Panel | None:
-        """Return the panel object."""
+    def session(self) -> Session:
+        """Return the authenticated session."""
+        return self._session
+
+    @property
+    def panel(self) -> Panel:
+        """Return the resolved Panel.  Raises if async_connect not yet called."""
+        if self._panel is None:
+            raise RuntimeError("CrowHub.async_connect() has not been called yet")
         return self._panel
 
-    async def init_panel(self) -> None:
-        """Initialize the panel connection."""
-        self._panel = await self.session.get_panel(self._mac)
-        _LOGGER.info("Panel initialized: %s", self._panel.name if self._panel else "Unknown")
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
 
-    async def async_test_connection(self) -> bool:
-        """Test if we can connect to the Crow Cloud."""
+    async def async_connect(self) -> None:
+        """Login and resolve the panel.  Raises HA exceptions on failure."""
         try:
-            panel = await self.session.get_panel(self._mac)
-            return panel is not None
-        except Exception as err:
-            _LOGGER.error("Connection test failed: %s", err)
-            return False
+            self._panel = await self._session.get_panel(self._mac)
+        except AuthenticationError as err:
+            raise ConfigEntryAuthFailed(
+                "Crow Cloud authentication failed — check email/password"
+            ) from err
+        except PanelNotFoundError as err:
+            raise ConfigEntryNotReady(
+                f"Panel {self._mac!r} not found on Crow Cloud"
+            ) from err
+        except ConnectionError as err:
+            raise ConfigEntryNotReady(
+                f"Could not reach Crow Cloud: {err}"
+            ) from err
 
-    @Throttle(timedelta(seconds=60))
-    async def _get_devices(self) -> list[dict[str, Any]] | None:
-        """Get devices (zones) from the panel."""
+        # Wire the user code so arm/disarm headers are sent automatically.
+        if self._panel_code:
+            self._panel.user_code = self._panel_code
+
+        _LOGGER.debug("Panel connected: %s (id=%s)", self._panel.name, self._panel.id)
+
+    async def async_close(self) -> None:
+        """Close the underlying session."""
         try:
-            zones = await self.panel.get_zones()
-            return zones
-        except ResponseError as ex:
-            _LOGGER.error("Failed to get zones: %s", ex)
-            return None
-        except Exception as ex:
-            _LOGGER.error("Unexpected error getting zones: %s", ex)
-            return None
+            await self._session.close()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Session close returned: %s", err)
 
-    async def get_devices(self) -> list[dict[str, Any]]:
-        """Get devices with caching."""
-        devices = await self._get_devices()
-        if devices:
-            self._devices = devices
-        return self._devices or []
+    # ------------------------------------------------------------------
+    # Factory helper
+    # ------------------------------------------------------------------
 
-    @Throttle(timedelta(seconds=30))
-    async def _get_measurements(self) -> list[dict[str, Any]] | None:
-        """Get measurements from the panel."""
-        try:
-            return await self.panel.get_measurements()
-        except ResponseError as ex:
-            _LOGGER.error("Failed to get measurements: %s", ex)
-            return None
-        except Exception as ex:
-            _LOGGER.error("Unexpected error getting measurements: %s", ex)
-            return None
-
-    async def get_measurements(self) -> list[dict[str, Any]]:
-        """Get measurements with caching."""
-        measurements = await self._get_measurements()
-        if measurements:
-            self._measurements = measurements
-        return self._measurements or []
-
-    @Throttle(timedelta(seconds=30))
-    async def _get_outputs(self) -> list[dict[str, Any]] | None:
-        """Get outputs from the panel."""
-        try:
-            return await self.panel.get_outputs()
-        except ResponseError as ex:
-            _LOGGER.error("Failed to get outputs: %s", ex)
-            return None
-        except Exception as ex:
-            _LOGGER.error("Unexpected error getting outputs: %s", ex)
-            return None
-
-    async def get_outputs(self) -> list[dict[str, Any]]:
-        """Get outputs with caching."""
-        outputs = await self._get_outputs()
-        if outputs:
-            self._outputs = outputs
-        return self._outputs or []
-
-    async def get_areas(self) -> list[dict[str, Any]]:
-        """Get alarm areas/partitions."""
-        try:
-            areas = await self.panel.get_areas()
-            self._areas = areas
-            return areas
-        except ResponseError as ex:
-            _LOGGER.error("Failed to get areas: %s", ex)
-            return self._areas or []
-        except Exception as ex:
-            _LOGGER.error("Unexpected error getting areas: %s", ex)
-            return self._areas or []
-
-    async def get_area(self, area_id: str) -> dict[str, Any] | None:
-        """Get a specific area."""
-        try:
-            return await self.panel.get_area(area_id)
-        except ResponseError as ex:
-            _LOGGER.error("Failed to get area %s: %s", area_id, ex)
-            return None
-        except Exception as ex:
-            _LOGGER.error("Unexpected error getting area %s: %s", area_id, ex)
-            return None
-
-    async def set_area_state(self, area_id: str, state: str) -> dict[str, Any] | None:
-        """Set the state of an area (arm/disarm)."""
-        api_state = SET_STATE_MAP.get(state, "disarm")
-        _LOGGER.info("Setting area %s to state %s (API: %s)", area_id, state, api_state)
-        try:
-            return await self.panel.set_area_state(area_id, api_state)
-        except ResponseError as err:
-            if err.status_code == 408:
-                _LOGGER.debug("Received expected 408 response when setting arm state")
-                return None
-            _LOGGER.error("Failed to set area state: %s", err)
-            raise
-        except Exception as err:
-            _LOGGER.error("Unexpected error setting area state: %s", err)
-            raise
-
-    async def set_output_state(self, output_id: str, state: bool) -> bool:
-        """Set the state of an output."""
-        try:
-            await self.panel.set_output_state(output_id, state)
-            return True
-        except ResponseError as ex:
-            _LOGGER.error("Failed to set output state: %s", ex)
-            return False
-        except Exception as ex:
-            _LOGGER.error("Unexpected error setting output state: %s", ex)
-            return False
-
-    async def capture_cam_image(self, zone_id: str) -> bytes | None:
-        """Capture an image from a camera zone."""
-        try:
-            return await self.panel.capture_cam_image(zone_id)
-        except ResponseError as ex:
-            _LOGGER.error("Failed to capture camera image: %s", ex)
-            return None
-        except Exception as ex:
-            _LOGGER.error("Unexpected error capturing camera image: %s", ex)
-            return None
-
-    def subscribe(self, device_id: str, callback: Callable) -> None:
-        """Subscribe to updates for a device."""
-        self._subscriptions[device_id] = callback
-
-    def unsubscribe(self, device_id: str) -> None:
-        """Unsubscribe from updates for a device."""
-        self._subscriptions.pop(device_id, None)
-
-    async def ws_connect(self) -> None:
-        """Connect to WebSocket for real-time updates."""
-        async def ws_callback(msg: dict[str, Any]) -> None:
-            """Handle WebSocket messages."""
-            # Skip certain info messages
-            if (msg.get("type") == "info" and 
-                msg.get("data", {}).get("_id", {}).get("dect_interface") == 32768):
-                _LOGGER.debug("Skipping DECT info message")
-                return
-            
-            _LOGGER.debug("Received WebSocket message: %s", msg)
-            
-            # Find and call the appropriate callback
-            device_id = msg.get("data", {}).get("_id", {}).get("device_id")
-            if device_id and device_id in self._subscriptions:
-                callback = self._subscriptions[device_id]
-                try:
-                    callback(msg)
-                except Exception as err:
-                    _LOGGER.error("Error in subscription callback: %s", err)
-
-        try:
-            await self.session.ws_connect(self._mac, ws_callback)
-        except Exception as err:
-            _LOGGER.error("WebSocket connection failed: %s", err)
-
-    @staticmethod
-    def map_alarm_state(api_state: str) -> str:
-        """Map API alarm state to Home Assistant state."""
-        return STATE_MAP.get(api_state, "disarmed")
+    @classmethod
+    def from_config_entry(cls, data: dict, options: dict) -> "CrowHub":
+        """Build a CrowHub from config entry data + options dicts."""
+        panel_code = options.get(CONF_PANEL_CODE) or data.get(CONF_PANEL_CODE) or None
+        return cls(
+            email=data[CONF_EMAIL],
+            password=data[CONF_PASSWORD],
+            mac=data[CONF_PANEL_MAC],
+            panel_code=panel_code,
+        )
