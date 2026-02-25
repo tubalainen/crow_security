@@ -23,7 +23,7 @@ A Home Assistant custom integration for Crow alarm panels that connects to Crow 
 
 1. Open HACS in Home Assistant
 2. Click **Integrations** → three-dot menu → **Custom repositories**
-3. Add this repository URL with category **Integration**
+3. Add `https://github.com/tubalainen/crow_security` with category **Integration**
 4. Install and restart Home Assistant
 
 ### Manual

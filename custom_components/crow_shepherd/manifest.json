@@ -3,9 +3,9 @@
   "name": "Crow Shepherd Alarm",
   "codeowners": ["@tubalainen"],
   "config_flow": true,
-  "documentation": "https://github.com/tubalainen/crow_shepherd",
+  "documentation": "https://github.com/tubalainen/crow_security",
   "iot_class": "cloud_push",
-  "issue_tracker": "https://github.com/tubalainen/crow_shepherd/issues",
+  "issue_tracker": "https://github.com/tubalainen/crow_security/issues",
   "requirements": ["crow_security_ng>=0.2.1"],
   "version": "0.2.1",
   "integration_type": "hub"
