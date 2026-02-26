@@ -44,13 +44,11 @@
         "description": "Adjust integration settings.",
         "data": {
           "scan_interval": "Update interval (seconds)",
-          "panel_code": "Panel User Code",
-          "camera_zone_ids": "PIR Camera Zones"
+          "panel_code": "Panel User Code"
         },
         "data_description": {
           "scan_interval": "How often to poll the Crow Cloud for updates (10–300 seconds).",
-          "panel_code": "The numeric user code used to arm and disarm the panel. Leave blank if not required.",
-          "camera_zone_ids": "Select zones that are PIR cameras. An image entity will be created for each selected zone."
+          "panel_code": "The numeric user code used to arm and disarm the panel. Leave blank if not required."
         }
       }
     }

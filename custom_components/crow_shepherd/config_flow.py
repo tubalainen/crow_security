@@ -23,14 +23,11 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.core import callback
-from homeassistant.helpers import selector
 
 from .const import (
-    CONF_CAMERA_ZONE_IDS,
     CONF_PANEL_CODE,
     CONF_PANEL_MAC,
     CONF_SCAN_INTERVAL,
-    DATA_COORDINATOR,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
@@ -199,10 +196,6 @@ class CrowShepherdOptionsFlow(OptionsFlow):
             # Strip empty panel_code so we don't store an empty string
             if not user_input.get(CONF_PANEL_CODE, "").strip():
                 user_input.pop(CONF_PANEL_CODE, None)
-            # SelectSelector returns strings — convert zone IDs back to ints
-            user_input[CONF_CAMERA_ZONE_IDS] = [
-                int(x) for x in user_input.get(CONF_CAMERA_ZONE_IDS, [])
-            ]
             return self.async_create_entry(title="", data=user_input)
 
         current_code = (
@@ -210,25 +203,6 @@ class CrowShepherdOptionsFlow(OptionsFlow):
             or self.config_entry.data.get(CONF_PANEL_CODE)
             or ""
         )
-
-        # Build zone list from live coordinator data for the multi-select
-        try:
-            coordinator = self.hass.data[DOMAIN][self.config_entry.entry_id][
-                DATA_COORDINATOR
-            ]
-            zone_options = [
-                selector.SelectOptionDict(value=str(zone.id), label=zone.name)
-                for zone in sorted(coordinator.data.zones, key=lambda z: z.name)
-            ]
-        except (KeyError, AttributeError):
-            _LOGGER.warning(
-                "Could not load zone list for options form — coordinator not ready"
-            )
-            zone_options = []
-        current_camera_ids = [
-            str(x)
-            for x in self.config_entry.options.get(CONF_CAMERA_ZONE_IDS, [])
-        ]
 
         return self.async_show_form(
             step_id="init",
@@ -244,15 +218,6 @@ class CrowShepherdOptionsFlow(OptionsFlow):
                         CONF_PANEL_CODE,
                         default=current_code,
                     ): str,
-                    vol.Optional(
-                        CONF_CAMERA_ZONE_IDS,
-                        default=current_camera_ids,
-                    ): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=zone_options,
-                            multiple=True,
-                        )
-                    ),
                 }
             ),
         )

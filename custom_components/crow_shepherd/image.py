@@ -1,6 +1,7 @@
 """Image platform for Crow Shepherd PIR camera zones."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any
@@ -18,7 +19,7 @@ from homeassistant.helpers.entity_platform import (
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import CONF_CAMERA_ZONE_IDS, DATA_COORDINATOR, DOMAIN
+from .const import DATA_COORDINATOR, DOMAIN
 from .coordinator import CrowShepherdCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,21 +34,18 @@ async def async_setup_entry(
     coordinator: CrowShepherdCoordinator = hass.data[DOMAIN][entry.entry_id][
         DATA_COORDINATOR
     ]
-    camera_zone_ids: set[int] = set(entry.options.get(CONF_CAMERA_ZONE_IDS, []))
     entities = [
         CrowShepherdCameraImage(coordinator, zone)
         for zone in coordinator.data.zones
-        if zone.is_camera or zone.id in camera_zone_ids
     ]
     async_add_entities(entities)
 
-    if not entities:
-        _LOGGER.warning(
-            "No PIR camera image entities created. "
-            "If your panel has PIR cameras, go to Settings \u2192 Devices & Services "
-            "\u2192 Crow Shepherd \u2192 Configure and select the camera zones under "
-            "'PIR Camera Zones', then reload the integration."
-        )
+    # Pre-populate entities with the most recent stored picture on startup.
+    # Zones with no pictures are skipped silently.
+    await asyncio.gather(
+        *(entity.async_fetch_snapshot(silent=True) for entity in entities),
+        return_exceptions=True,
+    )
 
     platform = async_get_current_platform()
     platform.async_register_entity_service(
@@ -102,10 +100,11 @@ class CrowShepherdCameraImage(
         """Return the stored JPEG bytes."""
         return self._image_bytes
 
-    async def async_fetch_snapshot(self) -> None:
+    async def async_fetch_snapshot(self, *, silent: bool = False) -> None:
         """Fetch the latest snapshot from the panel and store it.
 
-        Called by the crow_shepherd.fetch_camera_snapshot action.
+        Called by the crow_shepherd.fetch_camera_snapshot action, and also
+        automatically on integration startup (with silent=True).
         """
         try:
             pics = await self.coordinator.hub.panel.get_zone_pictures(self._zone_id)
@@ -114,7 +113,8 @@ class CrowShepherdCameraImage(
             return
 
         if not pics:
-            _LOGGER.warning("Zone %s: no pictures available yet", self._zone_id)
+            if not silent:
+                _LOGGER.warning("Zone %s: no pictures available yet", self._zone_id)
             return
 
         pic = pics[-1]
