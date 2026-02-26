@@ -78,6 +78,7 @@ The integration will automatically normalize it.
 After setup, you can configure:
 - **Update Interval**: How often to poll for updates (10-300 seconds, default: 30)
 - **Panel Code**: Your alarm panel code for arming/disarming
+- **PIR Camera Zones**: Select which zones are PIR cameras. An `image.*` entity is created for each selected zone, which you can populate using the `fetch_camera_snapshot` action
 
 ## Entities Created
 
@@ -89,6 +90,9 @@ After setup, you can configure:
 
 ### Switches (per output)
 - `switch.{output_name}` - Output control
+
+### Image Entities (PIR cameras)
+- `image.{zone_name}_snapshot` - Latest on-demand snapshot from a PIR camera zone (one per camera zone configured in Options)
 
 ### Sensors
 - `sensor.{measurement_name}` - Measurement sensors
@@ -114,12 +118,10 @@ Bypass or unbypass a zone.
 | `zone_id` | string | Yes | The zone ID to bypass |
 | `bypass` | boolean | Yes | True to bypass, false to unbypass |
 
-### `crow_shepherd.trigger_camera_snapshot`
-Trigger a camera zone to take a new snapshot.
+### `crow_shepherd.fetch_camera_snapshot`
+Fetch the latest snapshot from a PIR camera zone and update the image entity.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `zone_id` | string | Yes | The camera zone ID |
+Target an `image.*` entity created for that camera zone. No additional parameters required.
 
 ## Automations Examples
 
@@ -187,6 +189,7 @@ automation:
 - Check the Home Assistant logs for errors
 - Ensure your panel has the expected devices configured
 - Try reloading the integration
+- **No `image.*` entities?** Go to the integration Options and select your PIR camera zones under "PIR Camera Zones", then reload the integration
 
 ### Real-time Updates Not Working
 - The integration uses WebSocket for real-time updates

@@ -9,6 +9,7 @@ DOMAIN: Final = "crow_shepherd"
 CONF_PANEL_MAC: Final = "panel_mac"
 CONF_PANEL_CODE: Final = "panel_code"
 CONF_SCAN_INTERVAL: Final = "scan_interval"
+CONF_CAMERA_ZONE_IDS: Final = "camera_zone_ids"
 
 # Default values
 DEFAULT_SCAN_INTERVAL: Final = 30
