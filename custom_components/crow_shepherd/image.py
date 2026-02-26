@@ -18,7 +18,7 @@ from homeassistant.helpers.entity_platform import (
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import DATA_COORDINATOR, DOMAIN
+from .const import CONF_CAMERA_ZONE_IDS, DATA_COORDINATOR, DOMAIN
 from .coordinator import CrowShepherdCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,10 +33,11 @@ async def async_setup_entry(
     coordinator: CrowShepherdCoordinator = hass.data[DOMAIN][entry.entry_id][
         DATA_COORDINATOR
     ]
+    camera_zone_ids: set[int] = set(entry.options.get(CONF_CAMERA_ZONE_IDS, []))
     entities = [
         CrowShepherdCameraImage(coordinator, zone)
         for zone in coordinator.data.zones
-        if zone.is_camera
+        if zone.is_camera or zone.id in camera_zone_ids
     ]
     async_add_entities(entities)
 
