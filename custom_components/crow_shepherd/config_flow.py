@@ -212,13 +212,19 @@ class CrowShepherdOptionsFlow(OptionsFlow):
         )
 
         # Build zone list from live coordinator data for the multi-select
-        coordinator = self.hass.data[DOMAIN][self.config_entry.entry_id][
-            DATA_COORDINATOR
-        ]
-        zone_options = [
-            selector.SelectOptionDict(value=str(zone.id), label=zone.name)
-            for zone in sorted(coordinator.data.zones, key=lambda z: z.name)
-        ]
+        try:
+            coordinator = self.hass.data[DOMAIN][self.config_entry.entry_id][
+                DATA_COORDINATOR
+            ]
+            zone_options = [
+                selector.SelectOptionDict(value=str(zone.id), label=zone.name)
+                for zone in sorted(coordinator.data.zones, key=lambda z: z.name)
+            ]
+        except (KeyError, AttributeError):
+            _LOGGER.warning(
+                "Could not load zone list for options form — coordinator not ready"
+            )
+            zone_options = []
         current_camera_ids = [
             str(x)
             for x in self.config_entry.options.get(CONF_CAMERA_ZONE_IDS, [])
