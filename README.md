@@ -2,6 +2,8 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
 
+> **Disclaimer:** This is an independent, community-developed custom integration and is **not** an official product of, endorsed by, or affiliated with [The Crow Group](https://www.thecrowgroup.com/). All product names and trademarks are the property of their respective owners.
+
 A Home Assistant custom integration for Crow alarm panels that connects to Crow Cloud using the [crow_security_ng](https://github.com/tubalainen/crow_security_ng) Python library.
 
 ## Features
