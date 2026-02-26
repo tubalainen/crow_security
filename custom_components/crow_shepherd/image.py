@@ -1,7 +1,6 @@
 """Image platform for Crow Shepherd PIR camera zones."""
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime
 from typing import Any
@@ -19,7 +18,7 @@ from homeassistant.helpers.entity_platform import (
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import DATA_COORDINATOR, DOMAIN
+from .const import CONF_CAMERA_ZONE_IDS, DATA_COORDINATOR, DOMAIN
 from .coordinator import CrowShepherdCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -34,18 +33,21 @@ async def async_setup_entry(
     coordinator: CrowShepherdCoordinator = hass.data[DOMAIN][entry.entry_id][
         DATA_COORDINATOR
     ]
+    camera_zone_ids: set[int] = set(entry.options.get(CONF_CAMERA_ZONE_IDS, []))
     entities = [
         CrowShepherdCameraImage(coordinator, zone)
         for zone in coordinator.data.zones
+        if zone.is_camera or zone.id in camera_zone_ids
     ]
     async_add_entities(entities)
 
-    # Pre-populate entities with the most recent stored picture on startup.
-    # Zones with no pictures are skipped silently.
-    await asyncio.gather(
-        *(entity.async_fetch_snapshot(silent=True) for entity in entities),
-        return_exceptions=True,
-    )
+    if not entities:
+        _LOGGER.warning(
+            "No PIR camera image entities created. "
+            "If your panel has PIR cameras, go to Settings \u2192 Devices & Services "
+            "\u2192 Crow Shepherd \u2192 Configure and select the camera zones under "
+            "'PIR Camera Zones', then reload the integration."
+        )
 
     platform = async_get_current_platform()
     platform.async_register_entity_service(
@@ -90,6 +92,15 @@ class CrowShepherdCameraImage(
             manufacturer="Crow",
             model=panel.firmware_version or "Alarm Panel",
         )
+
+    async def async_added_to_hass(self) -> None:
+        """Run when entity is added to hass.
+
+        Calls super() first so CoordinatorEntity and ImageEntity both initialize
+        (including access_tokens), then silently fetches the latest stored picture.
+        """
+        await super().async_added_to_hass()
+        await self.async_fetch_snapshot(silent=True)
 
     @property
     def image_last_updated(self) -> datetime | None:

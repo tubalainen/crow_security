@@ -124,7 +124,7 @@ async def _ws_loop(hass: HomeAssistant, entry_id: str) -> None:
 
         async def _on_ws_message(msg: dict) -> None:
             _LOGGER.debug("WebSocket message received: %s", msg)
-            coordinator.async_request_refresh()
+            hass.async_create_task(coordinator.async_request_refresh())
 
         try:
             _LOGGER.debug("Starting WebSocket connection for panel %s", hub.mac)

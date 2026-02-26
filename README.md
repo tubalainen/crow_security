@@ -10,7 +10,7 @@ A Home Assistant custom integration for Crow alarm panels that connects to Crow 
 - **Zone Binary Sensors** — open/close state for every zone with motion, tamper, bypass, battery, RSSI and battery voltage as attributes
 - **Output Switches** — turn outputs on/off with tamper, battery, RSSI and battery voltage as attributes
 - **DECT Measurement Sensors** — temperature, humidity, air pressure and gas level sensors for smart devices
-- **PIR Camera Image Entities** — one `image.*` entity per zone; automatically pre-populated with the most recent stored snapshot on startup; refresh on demand via the `fetch_camera_snapshot` action
+- **PIR Camera Image Entities** — one `image.*` entity per configured camera zone; automatically pre-populated with the most recent stored snapshot on startup; refresh on demand via the `fetch_camera_snapshot` action
 
 ## Requirements
 
@@ -101,15 +101,15 @@ One entity per measurement type per smart device:
 | `sensor.<device_name>_air_pressure` | Atmospheric pressure (hPa) |
 | `sensor.<device_name>_gas_level` | Gas level (0–4 scale) |
 
-### Image Entities
+### Image Entities (PIR cameras)
 
-One entity per zone — no manual configuration needed:
+One entity per configured camera zone:
 
 | Entity | Description |
 |--------|-------------|
 | `image.<zone_name>_snapshot` | Latest JPEG snapshot |
 
-On every integration startup, each entity is silently pre-populated with the most recent stored picture from the panel. Zones that have no pictures yet remain empty without generating warnings.
+Select which zones are PIR cameras via **Settings → Devices & Services → Crow Shepherd → Configure** (gear icon) under **PIR Camera Zones**. On every integration startup, each image entity is automatically pre-populated with the most recent stored picture from the panel. Zones that have no pictures yet remain empty without generating log warnings.
 
 To fetch a fresh picture after a PIR trigger, call `crow_shepherd.fetch_camera_snapshot`.
 
