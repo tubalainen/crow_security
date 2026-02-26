@@ -58,7 +58,15 @@
   "services": {
     "fetch_camera_snapshot": {
       "name": "Fetch camera snapshot",
-      "description": "Downloads the latest snapshot from a PIR camera zone and updates the image entity."
+      "description": "Downloads the latest snapshot from a PIR camera zone and updates the image entity.",
+      "target": {
+        "entity": [
+          {
+            "integration": "crow_shepherd",
+            "domain": "image"
+          }
+        ]
+      }
     },
     "bypass_zone": {
       "name": "Bypass Zone",
