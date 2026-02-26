@@ -41,6 +41,14 @@ async def async_setup_entry(
     ]
     async_add_entities(entities)
 
+    if not entities:
+        _LOGGER.warning(
+            "No PIR camera image entities created. "
+            "If your panel has PIR cameras, go to Settings \u2192 Devices & Services "
+            "\u2192 Crow Shepherd \u2192 Configure and select the camera zones under "
+            "'PIR Camera Zones', then reload the integration."
+        )
+
     platform = async_get_current_platform()
     platform.async_register_entity_service(
         "fetch_camera_snapshot",
