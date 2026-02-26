@@ -35,7 +35,7 @@ async def async_setup_entry(
     ]
     camera_zone_ids: set[int] = set(entry.options.get(CONF_CAMERA_ZONE_IDS, []))
     entities = [
-        CrowShepherdCameraImage(coordinator, zone)
+        CrowShepherdCameraImage(hass, coordinator, zone)
         for zone in coordinator.data.zones
         if zone.is_camera or zone.id in camera_zone_ids
     ]
@@ -68,11 +68,13 @@ class CrowShepherdCameraImage(
 
     def __init__(
         self,
+        hass: HomeAssistant,
         coordinator: CrowShepherdCoordinator,
         zone: Zone,
     ) -> None:
         """Initialise entity."""
-        super().__init__(coordinator)
+        CoordinatorEntity.__init__(self, coordinator)
+        ImageEntity.__init__(self, hass)
         self._zone_id = zone.id
         self._attr_unique_id = f"{coordinator.hub.mac}_zone_{zone.id}_image"
         self._attr_name = f"{zone.name} Snapshot"
