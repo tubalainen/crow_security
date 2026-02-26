@@ -2,210 +2,254 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
 
-A comprehensive Home Assistant custom integration for the Crow Shepherd alarm system that connects to Crow Cloud using the [crow_security_ng](https://github.com/crow-security-ng/crow-security-ng) Python library.
+A Home Assistant custom integration for Crow alarm panels that connects to Crow Cloud using the [crow_security_ng](https://github.com/tubalainen/crow_security_ng) Python library.
 
 ## Features
 
-- **Alarm Control Panel**: Full control of your alarm system
-  - Arm/Disarm in multiple modes (Away, Home)
-  - Real-time status updates via WebSocket
-  - Support for multiple areas/partitions
+- **Alarm Control Panel** — arm/disarm in Away and Home modes; real-time state via WebSocket; one entity per area/partition
+- **Zone Binary Sensors** — open/close state for every zone with motion, tamper, bypass, battery, RSSI and battery voltage as attributes
+- **Output Switches** — turn outputs on/off with tamper, battery, RSSI and battery voltage as attributes
+- **DECT Measurement Sensors** — temperature, humidity, air pressure and gas level sensors for smart devices
+- **PIR Camera Image Entities** — on-demand JPEG snapshots from smart-cam zones (zone type 55), fetched via the `fetch_camera_snapshot` action
 
-- **Zone Sensors**: Binary sensors for all zones
-  - Door/Window sensors
-  - Motion detectors
-  - Smoke/Gas detectors
-  - Water leak sensors
-  - Battery level monitoring
-  - Signal strength indicators
-  - Bypass status
+## Requirements
 
-- **Output Switches**: Control all outputs
-  - Turn outputs on/off
-  - Real-time status updates
-
-- **Sensors**: Additional monitoring
-  - Measurement sensors (temperature, humidity, etc.)
-  - Zone battery sensors
-
-## Prerequisites
-
-This integration requires the `crow_security_ng` Python library which will be installed automatically.
+- Home Assistant 2024.11 or newer
+- `crow_security_ng >= 0.2.1` (installed automatically)
 
 ## Installation
 
 ### HACS (Recommended)
 
 1. Open HACS in Home Assistant
-2. Click on "Integrations"
-3. Click the three dots in the top right corner
-4. Select "Custom repositories"
-5. Add this repository URL with category "Integration"
-6. Click "Install"
-7. Restart Home Assistant
+2. Click **Integrations** → three-dot menu → **Custom repositories**
+3. Add `https://github.com/tubalainen/crow_security` with category **Integration**
+4. Install and restart Home Assistant
 
-### Manual Installation
+### Manual
 
-1. Download the latest release
-2. Copy the `crow_shepherd` folder to your `custom_components` directory
-3. Restart Home Assistant
+1. Copy the `custom_components/crow_shepherd` folder to your `custom_components` directory
+2. Restart Home Assistant
 
 ## Configuration
 
-1. Go to **Settings** → **Devices & Services**
-2. Click **Add Integration**
-3. Search for "Crow Shepherd"
-4. Enter your Crow Cloud credentials:
-   - **Email**: Your Crow Cloud account email
-   - **Password**: Your Crow Cloud account password
-   - **Panel MAC Address**: The MAC address of your panel (found in the Crow Cloud app settings)
+1. Go to **Settings** → **Devices & Services** → **Add Integration**
+2. Search for **Crow Shepherd**
+3. Enter your credentials:
+   - **Email** — your Crow Cloud account email
+   - **Password** — your Crow Cloud account password
+   - **Panel MAC Address** — the MAC address of your panel (found in the Crow Cloud app)
+   - **Panel User Code** *(optional)* — required only if your panel needs a code to arm/disarm
 
-### Finding Your Panel MAC Address
+### MAC address formats
 
-1. Open the Crow Cloud app on your phone
-2. Go to Settings/Panel Information
-3. The MAC address is displayed there
+All of the following are accepted — the integration normalises them automatically:
 
-**You can enter the MAC address in any format:**
-- With colons: `AA:BB:CC:DD:EE:FF`
-- With dashes: `AA-BB-CC-DD-EE-FF`
-- Without separators: `AABBCCDDEEFF`
-
-The integration will automatically normalize it.
+```
+AABBCCDDEEFF
+AA:BB:CC:DD:EE:FF
+AA-BB-CC-DD-EE-FF
+```
 
 ## Options
 
-After setup, you can configure:
-- **Update Interval**: How often to poll for updates (10-300 seconds, default: 30)
-- **Panel Code**: Your alarm panel code for arming/disarming
-- **PIR Camera Zones**: Select which zones are PIR cameras. An `image.*` entity is created for each selected zone, which you can populate using the `fetch_camera_snapshot` action
+After setup, you can adjust:
 
-## Entities Created
+- **Update interval** — how often to poll Crow Cloud (10–300 s, default 30 s)
+- **Panel User Code** — update the arm/disarm code without reconfiguring
+
+## Entities
 
 ### Alarm Control Panel
-- `alarm_control_panel.{panel_name}_{area_name}` - Alarm panel entity (one per area)
 
-### Binary Sensors (per zone)
-- `binary_sensor.{zone_name}` - Zone status (open/closed)
+One entity per area/partition:
 
-### Switches (per output)
-- `switch.{output_name}` - Output control
+| Entity | Description |
+|--------|-------------|
+| `alarm_control_panel.<area_name>` | Arm Away / Arm Home / Disarm |
+
+**Attributes:** `area_id`, `raw_state`, `ready_to_arm`, `ready_to_stay`, `zone_alarm`
+
+### Binary Sensors (zones)
+
+One entity per zone:
+
+| Entity | Description |
+|--------|-------------|
+| `binary_sensor.<zone_name>` | `on` = open / triggered |
+
+**Attributes:** `zone_id`, `zone_type`, `bypassed`, `tamper`, `battery_low`, `battery_voltage`, `active`, `rssi`
+
+### Switches (outputs)
+
+One entity per output:
+
+| Entity | Description |
+|--------|-------------|
+| `switch.<output_name>` | Turn output on/off |
+
+**Attributes:** `output_id`, `output_type`, `tamper`, `battery_low`, `battery_voltage`, `rssi`
+
+### Sensors (DECT measurements)
+
+One entity per measurement type per smart device:
+
+| Entity | Description |
+|--------|-------------|
+| `sensor.<device_name>_temperature` | Temperature (°C) |
+| `sensor.<device_name>_humidity` | Relative humidity (%) |
+| `sensor.<device_name>_air_pressure` | Atmospheric pressure (hPa) |
+| `sensor.<device_name>_gas_level` | Gas level (0–4 scale) |
 
 ### Image Entities (PIR cameras)
-- `image.{zone_name}_snapshot` - Latest on-demand snapshot from a PIR camera zone (one per camera zone configured in Options)
 
-### Sensors
-- `sensor.{measurement_name}` - Measurement sensors
-- `sensor.{zone_name}_battery` - Zone battery level (where available)
+One entity per camera zone (`zone_type == 55`):
 
-## State Mappings
+| Entity | Description |
+|--------|-------------|
+| `image.<zone_name>_snapshot` | Latest on-demand JPEG snapshot |
 
-| API State | Home Assistant State |
-|-----------|---------------------|
-| `armed` | `armed_away` |
-| `stay_armed` | `armed_home` |
-| `disarmed` | `disarmed` |
-| `arm in progress` | `arming` |
-| `stay arm in progress` | `arming` |
+The entity starts empty. Call `crow_shepherd.fetch_camera_snapshot` targeting it to populate the image.
 
-## Services
+**Attributes:** `picture_id`, `picture_type` (`alarm` / `manual`), `panel_time`
+
+## Actions
+
+### `crow_shepherd.fetch_camera_snapshot`
+
+Fetches the latest snapshot from a PIR camera zone and updates the image entity.
+
+**Target:** one or more `image.*` entities from this integration.
+
+```yaml
+action: crow_shepherd.fetch_camera_snapshot
+target:
+  entity_id: image.hall_cam_snapshot
+```
 
 ### `crow_shepherd.bypass_zone`
-Bypass or unbypass a zone.
+
+Bypass or unbypass a zone on the alarm panel.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `zone_id` | string | Yes | The zone ID to bypass |
-| `bypass` | boolean | Yes | True to bypass, false to unbypass |
+| `zone_id` | number | Yes | Numeric zone ID |
+| `bypass` | boolean | Yes | `true` to bypass, `false` to unbypass |
 
-### `crow_shepherd.fetch_camera_snapshot`
-Fetch the latest snapshot from a PIR camera zone and update the image entity.
+```yaml
+action: crow_shepherd.bypass_zone
+data:
+  zone_id: 3
+  bypass: true
+```
 
-Target an `image.*` entity created for that camera zone. No additional parameters required.
+## State Mappings
 
-## Automations Examples
+| Panel state | Home Assistant state |
+|-------------|----------------------|
+| `disarmed` | `disarmed` |
+| `armed` | `armed_away` |
+| `stay_armed` | `armed_home` |
+| `arm in progress` | `arming` |
+| `stay arm in progress` | `arming` |
+| `triggered` | `triggered` |
+| `pending` | `pending` |
 
-### Send notification when alarm is triggered
+## Automation Examples
+
+### Notify when alarm is triggered
+
 ```yaml
 automation:
   - alias: "Alarm Triggered Notification"
     trigger:
       - platform: state
         entity_id: alarm_control_panel.home_alarm
-        to: "triggered"
+        to: triggered
     action:
-      - service: notify.mobile_app
+      - action: notify.mobile_app
         data:
-          title: "🚨 Alarm Triggered!"
+          title: "Alarm Triggered"
           message: "Your alarm has been triggered"
 ```
 
-### Arm alarm when leaving home
+### Arm away when leaving home
+
 ```yaml
 automation:
   - alias: "Arm Away When Leaving"
     trigger:
       - platform: state
         entity_id: person.your_name
-        to: "not_home"
+        to: not_home
     action:
-      - service: alarm_control_panel.alarm_arm_away
+      - action: alarm_control_panel.alarm_arm_away
         target:
           entity_id: alarm_control_panel.home_alarm
 ```
 
-### Disarm alarm when arriving home
+### Disarm when arriving home
+
 ```yaml
 automation:
   - alias: "Disarm When Arriving"
     trigger:
       - platform: state
         entity_id: person.your_name
-        to: "home"
+        to: home
     action:
-      - service: alarm_control_panel.alarm_disarm
+      - action: alarm_control_panel.alarm_disarm
         target:
           entity_id: alarm_control_panel.home_alarm
 ```
 
+### Fetch camera snapshot when motion is detected
+
+```yaml
+automation:
+  - alias: "Fetch snapshot on motion"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.hall_cam
+        to: "on"
+    action:
+      - action: crow_shepherd.fetch_camera_snapshot
+        target:
+          entity_id: image.hall_cam_snapshot
+```
+
 ## Troubleshooting
 
-### Authentication Issues
-- Verify your Crow Cloud email and password are correct
-- Try logging into the Crow Cloud app to confirm your account is active
-- Check if your account has access to the panel
+### Authentication issues
+- Verify your Crow Cloud email and password
+- Try logging in via the Crow Cloud app to confirm your account is active
 
-### Panel Not Found
-- Verify the MAC address is correct (check in Crow Cloud app)
+### Panel not found
+- Double-check the MAC address in the Crow Cloud app settings
 - Ensure the panel is online and connected to the internet
-- Make sure your account has permissions to access the panel
 
-### Connection Issues
-- Ensure your Home Assistant has internet access
-- Check if Crow Cloud services are operational
-- Verify no firewall is blocking the connection
+### Entities missing
+- Check Home Assistant logs for errors
+- Try reloading the integration from **Settings → Devices & Services**
+- DECT sensors only appear if your panel has wireless smart devices
 
-### Missing Entities
-- Check the Home Assistant logs for errors
-- Ensure your panel has the expected devices configured
-- Try reloading the integration
-- **No `image.*` entities?** Go to the integration Options and select your PIR camera zones under "PIR Camera Zones", then reload the integration
+### Camera image not updating
+- The image entity is **on-demand only** — it does not update automatically
+- Call `crow_shepherd.fetch_camera_snapshot` to retrieve the latest picture
 
-### Real-time Updates Not Working
-- The integration uses WebSocket for real-time updates
-- Check if your Home Assistant can maintain WebSocket connections
-- Some updates may be delayed due to throttling (30-60 seconds)
+### Real-time updates not working
+- The integration uses WebSocket for live updates; it reconnects automatically after disruptions
+- If updates are delayed, check your Home Assistant's internet connection
 
 ## Support
 
-For issues and feature requests, please open an issue on GitHub.
+For issues and feature requests, open an issue on [GitHub](https://github.com/tubalainen/crow_security/issues).
 
 ## Credits
 
-- Uses the [crow_security_ng](https://github.com/crow-security-ng/crow-security-ng) Python library, an improved fork of the original [crow_security](https://pypi.org/project/crow-security/) by Shprota
+- Uses the [crow_security_ng](https://github.com/tubalainen/crow_security_ng) Python library by @tubalainen
 - Based on research from [ha_crow_cloud_security_component](https://github.com/tubalainen/ha_crow_cloud_security_component) by @tubalainen
-- Thanks to the Crow Group for their security products
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT License — see the LICENSE file for details.
