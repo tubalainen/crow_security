@@ -42,8 +42,8 @@ def _try_normalize_mac(raw: str) -> str | None:
     """Return 12-char lowercase hex MAC, or None if the input is invalid.
 
     Accepts both:
-      - compact form:   0013A1250A45
-      - colon-separated: 00:13:A1:25:0A:45
+      - compact form:   AABBCCDDEEFF
+      - colon-separated: AA:BB:CC:DD:EE:FF
     (and also dash-separated or space-separated variants)
     """
     try:

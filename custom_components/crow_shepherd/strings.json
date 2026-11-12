@@ -29,7 +29,7 @@
       "invalid_auth": "Invalid email or password.",
       "cannot_connect": "Failed to connect to Crow Cloud. Check your internet connection.",
       "no_panel": "No alarm panel found with the specified MAC address. Verify the MAC is correct.",
-      "invalid_mac": "Invalid MAC address format. Enter 12 hex characters — e.g. 0013A1250A45 or 00:13:A1:25:0A:45.",
+      "invalid_mac": "Invalid MAC address format. Enter 12 hex characters — e.g. AABBCCDDEEFF or AA:BB:CC:DD:EE:FF.",
       "unknown": "An unexpected error occurred."
     },
     "abort": {
@@ -58,15 +58,7 @@
   "services": {
     "fetch_camera_snapshot": {
       "name": "Fetch camera snapshot",
-      "description": "Downloads the latest snapshot from a PIR camera zone and updates the image entity.",
-      "target": {
-        "entity": [
-          {
-            "integration": "crow_shepherd",
-            "domain": "image"
-          }
-        ]
-      }
+      "description": "Downloads the latest snapshot from a PIR camera zone and updates the image entity."
     },
     "bypass_zone": {
       "name": "Bypass Zone",
@@ -78,7 +70,7 @@
         },
         "bypass": {
           "name": "Bypass",
-          "description": "True to bypass, false to unbypass."
+          "description": "True to bypass the zone, false to unbypass."
         }
       }
     }

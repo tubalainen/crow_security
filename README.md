@@ -1,6 +1,7 @@
 # Crow Shepherd Home Assistant Integration
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
+[![Validate](https://github.com/tubalainen/crow_security/actions/workflows/validate.yml/badge.svg)](https://github.com/tubalainen/crow_security/actions/workflows/validate.yml)
 
 > **Disclaimer:** This is an independent, community-developed custom integration and is **not** an official product of, endorsed by, or affiliated with [The Crow Group](https://www.thecrowgroup.com/). All product names and trademarks are the property of their respective owners.
 
@@ -18,6 +19,8 @@ A Home Assistant custom integration for Crow alarm panels that connects to Crow 
 
 - Home Assistant 2024.11 or newer
 - `crow_security_ng >= 0.2.1` (installed automatically)
+
+The integration icon is shipped in `custom_components/crow_shepherd/brand/` and is shown by Home Assistant 2026.3 or newer. Older versions work normally but display a placeholder icon.
 
 ## Installation
 
