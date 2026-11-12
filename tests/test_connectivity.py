@@ -13,6 +13,8 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
+import custom_components.crow_shepherd as crow_shepherd
+
 DOMAIN = "crow_shepherd"
 
 
@@ -67,9 +69,7 @@ async def _setup(hass: HomeAssistant, hub: MagicMock) -> MockConfigEntry:
         data={"email": "user@example.com", "password": "x", "panel_mac": "aabbccddeeff"},
     )
     entry.add_to_hass(hass)
-    with patch(
-        "custom_components.crow_shepherd.CrowHub.from_config_entry", return_value=hub
-    ):
+    with patch.object(crow_shepherd.CrowHub, "from_config_entry", return_value=hub):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     return entry
