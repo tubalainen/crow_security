@@ -1,0 +1,2 @@
+pytest-homeassistant-custom-component
+crow_security_ng>=0.2.3

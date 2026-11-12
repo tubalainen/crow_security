@@ -1,24 +1,33 @@
-"""Sensor platform for Crow Shepherd measurements."""
+"""Sensor platform for Crow Shepherd measurements and panel connectivity."""
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
-from crow_security_ng.models import Measurement
+from crow_security_ng.models import ConnectionInterface, Measurement
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
+    SensorEntityDescription,
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import SIGNAL_STRENGTH_DECIBELS_MILLIWATT
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DATA_COORDINATOR, DOMAIN
+from .connectivity import (
+    ConnectivityData,
+    CrowShepherdConnectivityCoordinator,
+    CrowShepherdConnectivityEntity,
+)
+from .const import DATA_CONNECTIVITY, DATA_COORDINATOR, DOMAIN
 from .coordinator import CrowShepherdCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -85,6 +94,109 @@ async def async_setup_entry(
         entities.append(CrowShepherdMeasurementSensor(coordinator, measurement))
 
     async_add_entities(entities)
+
+    connectivity: CrowShepherdConnectivityCoordinator = hass.data[DOMAIN][
+        entry.entry_id
+    ][DATA_CONNECTIVITY]
+    async_add_entities(
+        CrowShepherdConnectivitySensor(connectivity, description)
+        for description in CONNECTIVITY_SENSORS
+    )
+
+
+_INTERFACE_STATES: dict[ConnectionInterface, str] = {
+    ConnectionInterface.ETHERNET: "ethernet",
+}
+
+
+def _connection_type(data: ConnectivityData) -> str | None:
+    if data.connection is None or data.connection.interface is None:
+        return None
+    return _INTERFACE_STATES.get(data.connection.interface, "unknown")
+
+
+@dataclass(frozen=True, kw_only=True)
+class CrowConnectivitySensorDescription(SensorEntityDescription):
+    """Describes a panel connectivity sensor."""
+
+    value_fn: Callable[[ConnectivityData], str | int | datetime | None]
+    available_fn: Callable[[ConnectivityData], bool] = lambda data: True
+    attributes_fn: Callable[[ConnectivityData], dict[str, Any]] | None = None
+
+
+CONNECTIVITY_SENSORS: tuple[CrowConnectivitySensorDescription, ...] = (
+    CrowConnectivitySensorDescription(
+        key="last_heartbeat",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda data: data.last_heartbeat,
+    ),
+    CrowConnectivitySensorDescription(
+        key="connection_type",
+        device_class=SensorDeviceClass.ENUM,
+        options=["ethernet", "unknown"],
+        value_fn=_connection_type,
+        available_fn=lambda data: data.connection is not None,
+        attributes_fn=lambda data: {
+            "interface_code": int(data.connection.interface)
+            if data.connection and data.connection.interface is not None
+            else None
+        },
+    ),
+    CrowConnectivitySensorDescription(
+        key="gsm_status",
+        value_fn=lambda data: data.gsm.status_desc if data.gsm else None,
+        available_fn=lambda data: data.gsm is not None,
+    ),
+    CrowConnectivitySensorDescription(
+        key="wifi_signal",
+        device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+        native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        value_fn=lambda data: data.wifi.rssi if data.wifi else None,
+        available_fn=lambda data: data.wifi is not None and bool(data.wifi.enabled),
+    ),
+    CrowConnectivitySensorDescription(
+        key="gsm_signal",
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        value_fn=lambda data: data.gsm.rssi if data.gsm else None,
+        available_fn=lambda data: data.gsm is not None and bool(data.gsm.enabled),
+    ),
+)
+
+
+class CrowShepherdConnectivitySensor(CrowShepherdConnectivityEntity, SensorEntity):
+    """Diagnostic sensor for panel connectivity."""
+
+    entity_description: CrowConnectivitySensorDescription
+
+    def __init__(
+        self,
+        coordinator: CrowShepherdConnectivityCoordinator,
+        description: CrowConnectivitySensorDescription,
+    ) -> None:
+        super().__init__(coordinator, description.key)
+        self.entity_description = description
+
+    @property
+    def available(self) -> bool:
+        return (
+            super().available
+            and self.coordinator.data is not None
+            and self.entity_description.available_fn(self.coordinator.data)
+        )
+
+    @property
+    def native_value(self) -> str | int | datetime | None:
+        return self.entity_description.value_fn(self.coordinator.data)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        fn = self.entity_description.attributes_fn
+        if fn is None or self.coordinator.data is None:
+            return None
+        return fn(self.coordinator.data)
 
 
 class CrowShepherdMeasurementSensor(
