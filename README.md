@@ -130,7 +130,7 @@ Shown under **Diagnostic** on the panel's device page. Polled every 5 minutes.
 | `sensor.<panel>_last_heartbeat` | Time of the panel's last heartbeat to Crow Cloud |
 | `sensor.<panel>_connection_type` | `Ethernet`, or `Unknown` with the raw code in the `interface_code` attribute |
 | `sensor.<panel>_gsm_status` | GSM module status text, e.g. `Sim Not Inserted` |
-| `sensor.<panel>_wifi_signal` | Wi-Fi signal strength (dBm). Disabled by default; unavailable while Wi-Fi is off |
+| `sensor.<panel>_wi_fi_signal` | Wi-Fi signal strength (dBm). Disabled by default; unavailable while Wi-Fi is off |
 | `sensor.<panel>_gsm_signal` | GSM signal strength as reported by the panel. Disabled by default; unavailable while GSM is off |
 
 IP addresses, MAC addresses and the GSM IMEI are intentionally not exposed. If your panel shows `Unknown` as the connection type, please open an issue with the `interface_code` value and how the panel is connected, so it can be mapped.

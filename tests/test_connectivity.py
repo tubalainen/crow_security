@@ -89,10 +89,10 @@ async def test_connectivity_entities(hass: HomeAssistant) -> None:
     )
 
     reg = er.async_get(hass)
-    wifi = reg.async_get("sensor.test_panel_wifi_signal")
+    wifi = reg.async_get("sensor.test_panel_wi_fi_signal")
     assert wifi is not None and wifi.disabled_by is not None
     assert wifi.entity_category == "diagnostic"
-    assert hass.states.get("sensor.test_panel_wifi_signal") is None
+    assert hass.states.get("sensor.test_panel_wi_fi_signal") is None
 
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
