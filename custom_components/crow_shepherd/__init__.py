@@ -15,12 +15,14 @@ from homeassistant.helpers import config_validation as cv
 from .const import (
     CONF_PANEL_CODE,
     CONF_SCAN_INTERVAL,
+    DATA_CONNECTIVITY,
     DATA_COORDINATOR,
     DATA_HUB,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     PLATFORMS,
 )
+from .connectivity import CrowShepherdConnectivityCoordinator
 from .coordinator import CrowShepherdCoordinator
 from .hub import CrowHub
 
@@ -49,9 +51,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = CrowShepherdCoordinator(hass, hub, update_interval)
     await coordinator.async_config_entry_first_refresh()
 
+    # Connectivity is non-essential: a failed first fetch leaves its
+    # entities unavailable instead of blocking setup.
+    connectivity = CrowShepherdConnectivityCoordinator(hass, hub)
+    await connectivity.async_refresh()
+
     hass.data[DOMAIN][entry.entry_id] = {
         DATA_HUB: hub,
         DATA_COORDINATOR: coordinator,
+        DATA_CONNECTIVITY: connectivity,
     }
 
     # Forward setup to all platforms

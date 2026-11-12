@@ -13,6 +13,7 @@ CONF_CAMERA_ZONE_IDS: Final = "camera_zone_ids"
 
 # Default values
 DEFAULT_SCAN_INTERVAL: Final = 30
+CONNECTIVITY_SCAN_INTERVAL: Final = 300
 
 # Platforms
 PLATFORMS: Final = [
@@ -26,3 +27,4 @@ PLATFORMS: Final = [
 # hass.data keys
 DATA_HUB: Final = "hub"
 DATA_COORDINATOR: Final = "coordinator"
+DATA_CONNECTIVITY: Final = "connectivity"

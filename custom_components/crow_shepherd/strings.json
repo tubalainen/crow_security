@@ -74,5 +74,41 @@
         }
       }
     }
+  },
+  "entity": {
+    "binary_sensor": {
+      "cloud_connection": {
+        "name": "Cloud connection"
+      },
+      "radio_module": {
+        "name": "Radio module"
+      }
+    },
+    "sensor": {
+      "last_heartbeat": {
+        "name": "Last heartbeat"
+      },
+      "connection_type": {
+        "name": "Connection type",
+        "state": {
+          "ethernet": "Ethernet",
+          "unknown": "Unknown"
+        },
+        "state_attributes": {
+          "interface_code": {
+            "name": "Interface code"
+          }
+        }
+      },
+      "gsm_status": {
+        "name": "GSM status"
+      },
+      "wifi_signal": {
+        "name": "Wi-Fi signal"
+      },
+      "gsm_signal": {
+        "name": "GSM signal"
+      }
+    }
   }
 }

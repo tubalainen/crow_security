@@ -1,7 +1,9 @@
-"""Binary sensor platform for Crow Shepherd zones."""
+"""Binary sensor platform for Crow Shepherd zones and panel connectivity."""
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from crow_security_ng.models import Zone
@@ -9,6 +11,7 @@ from crow_security_ng.models import Zone
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
+    BinarySensorEntityDescription,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -16,7 +19,12 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DATA_COORDINATOR, DOMAIN
+from .connectivity import (
+    ConnectivityData,
+    CrowShepherdConnectivityCoordinator,
+    CrowShepherdConnectivityEntity,
+)
+from .const import DATA_CONNECTIVITY, DATA_COORDINATOR, DOMAIN
 from .coordinator import CrowShepherdCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -41,6 +49,65 @@ async def async_setup_entry(
         CrowShepherdZoneSensor(coordinator, zone)
         for zone in coordinator.data.zones
     )
+
+    connectivity: CrowShepherdConnectivityCoordinator = hass.data[DOMAIN][
+        entry.entry_id
+    ][DATA_CONNECTIVITY]
+    async_add_entities(
+        CrowShepherdConnectivityBinarySensor(connectivity, description)
+        for description in CONNECTIVITY_BINARY_SENSORS
+    )
+
+
+@dataclass(frozen=True, kw_only=True)
+class CrowConnectivityBinarySensorDescription(BinarySensorEntityDescription):
+    """Describes a panel connectivity binary sensor."""
+
+    value_fn: Callable[[ConnectivityData], bool | None]
+    available_fn: Callable[[ConnectivityData], bool] = lambda data: True
+
+
+CONNECTIVITY_BINARY_SENSORS: tuple[CrowConnectivityBinarySensorDescription, ...] = (
+    CrowConnectivityBinarySensorDescription(
+        key="cloud_connection",
+        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+        value_fn=lambda data: data.online,
+    ),
+    CrowConnectivityBinarySensorDescription(
+        key="radio_module",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        value_fn=lambda data: data.radio.failure if data.radio else None,
+        available_fn=lambda data: data.radio is not None,
+    ),
+)
+
+
+class CrowShepherdConnectivityBinarySensor(
+    CrowShepherdConnectivityEntity, BinarySensorEntity
+):
+    """Diagnostic binary sensor for panel connectivity."""
+
+    entity_description: CrowConnectivityBinarySensorDescription
+
+    def __init__(
+        self,
+        coordinator: CrowShepherdConnectivityCoordinator,
+        description: CrowConnectivityBinarySensorDescription,
+    ) -> None:
+        super().__init__(coordinator, description.key)
+        self.entity_description = description
+
+    @property
+    def available(self) -> bool:
+        return (
+            super().available
+            and self.coordinator.data is not None
+            and self.entity_description.available_fn(self.coordinator.data)
+        )
+
+    @property
+    def is_on(self) -> bool | None:
+        return self.entity_description.value_fn(self.coordinator.data)
 
 
 class CrowShepherdZoneSensor(

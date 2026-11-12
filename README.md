@@ -14,11 +14,12 @@ A Home Assistant custom integration for Crow alarm panels that connects to Crow 
 - **Output Switches** — turn outputs on/off with tamper, battery, RSSI and battery voltage as attributes
 - **DECT Measurement Sensors** — temperature, humidity, air pressure and gas level sensors for smart devices
 - **PIR Camera Image Entities** — one `image.*` entity per configured camera zone; automatically pre-populated with the most recent stored snapshot on startup; refresh on demand via the `fetch_camera_snapshot` action
+- **Panel Connectivity (diagnostic)** — cloud online/offline, last heartbeat, connection type, GSM status, Wi-Fi/GSM signal and radio module health
 
 ## Requirements
 
 - Home Assistant 2024.11 or newer
-- `crow_security_ng >= 0.2.2` (installed automatically)
+- `crow_security_ng >= 0.2.3` (installed automatically)
 
 The integration icon is shipped in `custom_components/crow_shepherd/brand/` and is shown by Home Assistant 2026.3 or newer. Older versions work normally but display a placeholder icon.
 
@@ -117,6 +118,22 @@ One entity per configured camera zone:
 Select which zones are PIR cameras via **Settings → Devices & Services → Crow Shepherd → Configure** (gear icon) under **PIR Camera Zones**. On every integration startup, each image entity is automatically pre-populated with the most recent stored picture from the panel. Zones that have no pictures yet remain empty without generating log warnings.
 
 To fetch a fresh picture after a PIR trigger, call `crow_shepherd.fetch_camera_snapshot`.
+
+### Panel Connectivity (diagnostic)
+
+Shown under **Diagnostic** on the panel's device page. Polled every 5 minutes.
+
+| Entity | Description |
+|--------|-------------|
+| `binary_sensor.<panel>_cloud_connection` | `on` = panel is online in Crow Cloud |
+| `binary_sensor.<panel>_radio_module` | `on` = the panel's wireless radio module reports a failure |
+| `sensor.<panel>_last_heartbeat` | Time of the panel's last heartbeat to Crow Cloud |
+| `sensor.<panel>_connection_type` | `Ethernet`, or `Unknown` with the raw code in the `interface_code` attribute |
+| `sensor.<panel>_gsm_status` | GSM module status text, e.g. `Sim Not Inserted` |
+| `sensor.<panel>_wifi_signal` | Wi-Fi signal strength (dBm). Disabled by default; unavailable while Wi-Fi is off |
+| `sensor.<panel>_gsm_signal` | GSM signal strength as reported by the panel. Disabled by default; unavailable while GSM is off |
+
+IP addresses, MAC addresses and the GSM IMEI are intentionally not exposed. If your panel shows `Unknown` as the connection type, please open an issue with the `interface_code` value and how the panel is connected, so it can be mapped.
 
 **Attributes:** `picture_id`, `picture_type` (`alarm` / `manual`), `panel_time`
 
