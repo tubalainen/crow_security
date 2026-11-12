@@ -11,6 +11,7 @@ from crow_security_ng.models import Zone
 from homeassistant.components.image import ImageEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import (
     AddEntitiesCallback,
@@ -129,21 +130,17 @@ class CrowShepherdCameraImage(
             try:
                 existing = await panel.get_zone_pictures(self._zone_id, page_size=1)
                 prev_id = existing[0].id if existing else None
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.error(
-                    "Zone %s: could not check existing pictures: %s",
-                    self._zone_id, err,
-                )
-                return
+            except Exception as err:
+                raise HomeAssistantError(
+                    f"Zone {self._zone_id}: could not check existing pictures: {err}"
+                ) from err
 
             try:
                 await panel.capture_picture(self._zone_id)
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.error(
-                    "Zone %s: could not trigger capture: %s",
-                    self._zone_id, err,
-                )
-                return
+            except Exception as err:
+                raise HomeAssistantError(
+                    f"Zone {self._zone_id}: could not trigger capture: {err}"
+                ) from err
 
             # Poll up to ~30 s (10 × 3 s) for the new picture to appear
             pic = None
@@ -151,19 +148,18 @@ class CrowShepherdCameraImage(
                 await asyncio.sleep(3)
                 try:
                     pics = await panel.get_zone_pictures(self._zone_id, page_size=1)
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.error("Zone %s: poll error: %s", self._zone_id, err)
-                    return
+                except Exception as err:
+                    raise HomeAssistantError(
+                        f"Zone {self._zone_id}: polling for the new picture failed: {err}"
+                    ) from err
                 if pics and pics[0].id != prev_id:
                     pic = pics[0]
                     break
 
             if pic is None:
-                _LOGGER.warning(
-                    "Zone %s: timed out waiting for new picture after capture",
-                    self._zone_id,
+                raise HomeAssistantError(
+                    f"Zone {self._zone_id}: timed out waiting for the new picture"
                 )
-                return
 
         else:
             # ── Silent startup fetch: retrieve the latest stored picture ──
@@ -182,7 +178,11 @@ class CrowShepherdCameraImage(
         # ── Download and store the picture ────────────────────────────────
         try:
             self._image_bytes = await session.get_picture_bytes(pic)
-        except Exception as err:  # noqa: BLE001
+        except Exception as err:
+            if not silent:
+                raise HomeAssistantError(
+                    f"Zone {self._zone_id}: could not download picture {pic.id}: {err}"
+                ) from err
             _LOGGER.error(
                 "Zone %s: could not download picture %s: %s",
                 self._zone_id, pic.id, err,
