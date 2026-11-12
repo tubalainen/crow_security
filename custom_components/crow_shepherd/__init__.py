@@ -9,6 +9,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
@@ -158,10 +159,10 @@ async def _handle_bypass_zone(call: ServiceCall) -> None:
 
     entry_data_list = hass.data.get(DOMAIN, {})
     if not entry_data_list:
-        _LOGGER.error("bypass_zone: no Crow Shepherd entries found")
-        return
+        raise HomeAssistantError("bypass_zone: no Crow Shepherd entries found")
 
-    for entry_id, entry_data in entry_data_list.items():
+    errors: list[str] = []
+    for entry_data in entry_data_list.values():
         coordinator: CrowShepherdCoordinator | None = entry_data.get(DATA_COORDINATOR)
         if coordinator is None:
             continue
@@ -175,12 +176,12 @@ async def _handle_bypass_zone(call: ServiceCall) -> None:
                 coordinator.hub.mac,
             )
         except Exception as err:  # noqa: BLE001
-            _LOGGER.error(
-                "Failed to set zone %s bypass on panel %s: %s",
-                zone_id,
-                coordinator.hub.mac,
-                err,
-            )
+            errors.append(f"panel {coordinator.hub.mac}: {err}")
+
+    if errors:
+        raise HomeAssistantError(
+            f"Failed to set zone {zone_id} bypass on " + "; ".join(errors)
+        )
 
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:

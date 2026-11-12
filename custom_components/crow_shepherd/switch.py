@@ -10,6 +10,7 @@ from crow_security_ng.models import Output
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -109,21 +110,14 @@ class CrowShepherdOutputSwitch(
         try:
             await self.coordinator.hub.panel.set_output_state(self._output_id, state)
         except ResponseError as err:
-            _LOGGER.error(
-                "Output %s: API error %s setting state to %s: %s",
-                self._output_id,
-                err.status_code,
-                state,
-                err,
-            )
-            return
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.error(
-                "Output %s: unexpected error setting state to %s: %s",
-                self._output_id,
-                state,
-                err,
-            )
-            return
+            raise HomeAssistantError(
+                f"Output {self._output_id}: turning {'on' if state else 'off'} "
+                f"failed (HTTP {err.status_code}): {err}"
+            ) from err
+        except Exception as err:
+            raise HomeAssistantError(
+                f"Output {self._output_id}: turning {'on' if state else 'off'} "
+                f"failed: {err}"
+            ) from err
 
         await self.coordinator.async_request_refresh()

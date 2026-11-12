@@ -14,6 +14,7 @@ from homeassistant.components.alarm_control_panel import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -160,18 +161,13 @@ class CrowShepherdAlarmControlPanel(
                     "Area %s: received expected 408 after %s", self._area_id, command
                 )
             else:
-                _LOGGER.error(
-                    "Area %s: API error %s during %s: %s",
-                    self._area_id,
-                    err.status_code,
-                    command,
-                    err,
-                )
-                return
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.error(
-                "Area %s: unexpected error during %s: %s", self._area_id, command, err
-            )
-            return
+                raise HomeAssistantError(
+                    f"Area {self._area_id}: {command.name.lower()} failed "
+                    f"(HTTP {err.status_code}): {err}"
+                ) from err
+        except Exception as err:
+            raise HomeAssistantError(
+                f"Area {self._area_id}: {command.name.lower()} failed: {err}"
+            ) from err
 
         await self.coordinator.async_request_refresh()

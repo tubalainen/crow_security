@@ -18,7 +18,7 @@ A Home Assistant custom integration for Crow alarm panels that connects to Crow 
 ## Requirements
 
 - Home Assistant 2024.11 or newer
-- `crow_security_ng >= 0.2.1` (installed automatically)
+- `crow_security_ng >= 0.2.2` (installed automatically)
 
 The integration icon is shipped in `custom_components/crow_shepherd/brand/` and is shown by Home Assistant 2026.3 or newer. Older versions work normally but display a placeholder icon.
 
@@ -243,6 +243,11 @@ automation:
 ### Camera image not updating
 - The image entity is **on-demand only** — it does not update automatically
 - Call `crow_shepherd.fetch_camera_snapshot` to retrieve the latest picture
+
+### Arm/disarm fails with "CSRF Failed: CSRF cookie not set"
+- Fixed in v0.2.10 (requires `crow_security_ng` 0.2.2, installed automatically). Update through HACS and restart Home Assistant.
+- The cause was an expired access token after the integration had run for many hours. The library now refreshes the token before it expires.
+- Failed arm/disarm, output, bypass and snapshot commands now show an error in the UI instead of failing silently.
 
 ### Real-time updates not working
 - The integration uses WebSocket for live updates; it reconnects automatically after disruptions
