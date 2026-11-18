@@ -12,8 +12,7 @@ DOMAIN: Final = "crow_shepherd"
 OUTPUT_TYPES_LOCK: Final[frozenset[int]] = frozenset()
 
 # output_type integers that should become siren entities instead of switches.
-# Example: OUTPUT_TYPES_SIREN: frozenset[int] = frozenset({2})
-OUTPUT_TYPES_SIREN: Final[frozenset[int]] = frozenset()
+OUTPUT_TYPES_SIREN: Final[frozenset[int]] = frozenset({70})
 
 # Configuration keys
 CONF_PANEL_MAC: Final = "panel_mac"
