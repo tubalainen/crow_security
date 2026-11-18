@@ -16,9 +16,23 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DATA_COORDINATOR, DOMAIN, OUTPUT_TYPES_LOCK
-from .coordinator import CrowShepherdCoordinator
+from .coordinator import CrowData, CrowShepherdCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _push_output(coordinator: CrowShepherdCoordinator, updated: Output) -> None:
+    """Replace one output in coordinator data and notify all listeners immediately."""
+    if coordinator.data is None:
+        return
+    coordinator.async_set_updated_data(
+        CrowData(
+            areas=coordinator.data.areas,
+            zones=coordinator.data.zones,
+            outputs=[updated if o.id == updated.id else o for o in coordinator.data.outputs],
+            measurements=coordinator.data.measurements,
+        )
+    )
 
 
 async def async_setup_entry(
@@ -101,7 +115,7 @@ class CrowShepherdLock(
 
     async def _set_state(self, state: bool) -> None:
         try:
-            await self.coordinator.hub.panel.set_output_state(self._output_id, state)
+            updated = await self.coordinator.hub.panel.set_output_state(self._output_id, state)
         except ResponseError as err:
             raise HomeAssistantError(
                 f"Output {self._output_id}: "
@@ -113,4 +127,4 @@ class CrowShepherdLock(
                 f"Output {self._output_id}: "
                 f"{'lock' if state else 'unlock'} failed: {err}"
             ) from err
-        await self.coordinator.async_request_refresh()
+        _push_output(self.coordinator, updated)
