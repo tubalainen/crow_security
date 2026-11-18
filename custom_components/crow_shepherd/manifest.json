@@ -8,5 +8,5 @@
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/tubalainen/crow_security/issues",
   "requirements": ["crow_security_ng>=0.2.4"],
-  "version": "0.2.13"
+  "version": "0.2.15"
 }
