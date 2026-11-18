@@ -15,7 +15,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DATA_COORDINATOR, DOMAIN
+from .const import DATA_COORDINATOR, DOMAIN, OUTPUT_TYPES_LOCK, OUTPUT_TYPES_SIREN
 from .coordinator import CrowShepherdCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -30,9 +30,28 @@ async def async_setup_entry(
     coordinator: CrowShepherdCoordinator = hass.data[DOMAIN][entry.entry_id][
         DATA_COORDINATOR
     ]
+
+    _claimed = OUTPUT_TYPES_LOCK | OUTPUT_TYPES_SIREN
+    for output in coordinator.data.outputs:
+        if output.output_type not in _claimed:
+            _LOGGER.debug(
+                "Output %d (%r) has output_type=%r — not mapped to lock/siren, using switch",
+                output.id,
+                output.name,
+                output.output_type,
+            )
+        else:
+            _LOGGER.debug(
+                "Output %d (%r) has output_type=%r — claimed by lock/siren platform, skipping switch",
+                output.id,
+                output.name,
+                output.output_type,
+            )
+
     async_add_entities(
         CrowShepherdOutputSwitch(coordinator, output)
         for output in coordinator.data.outputs
+        if output.output_type not in _claimed
     )
 
 
