@@ -44,6 +44,7 @@ class CrowShepherdSiren(
     """Siren entity representing a Crow output wired to a siren."""
 
     _attr_has_entity_name = True
+    _attr_entity_registry_enabled_default = False
 
     def __init__(
         self,
