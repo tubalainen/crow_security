@@ -11,8 +11,11 @@ A Home Assistant custom integration for Crow alarm panels that connects to Crow 
 
 - **Alarm Control Panel** — arm/disarm in Away and Home modes; real-time state via WebSocket; one entity per area/partition
 - **Zone Binary Sensors** — open/close state for every zone with motion, tamper, bypass, battery, RSSI and battery voltage as attributes
-- **Output Switches** — turn outputs on/off with tamper, battery, RSSI and battery voltage as attributes
+- **Output Switches** — generic on/off for outputs not mapped to a specific platform
+- **Lock Entities** — `lock.*` entities for outputs configured as door locks (e.g. Yale Door Lock)
+- **Siren Entities** — `siren.*` entities for outputs configured as sirens (e.g. Smart Siren)
 - **DECT Measurement Sensors** — temperature, humidity, air pressure and gas level sensors for smart devices
+- **Zone Temperature Sensors** — temperature sensor for every zone that reports a temperature value
 - **PIR Camera Image Entities** — one `image.*` entity per configured camera zone; automatically pre-populated with the most recent stored snapshot on startup; refresh on demand via the `fetch_camera_snapshot` action
 - **Panel Connectivity (diagnostic)** — cloud online/offline, last heartbeat, connection type, GSM status, Wi-Fi/GSM signal and radio module health
 
@@ -86,9 +89,44 @@ One entity per zone:
 
 **Attributes:** `zone_id`, `zone_type`, `bypassed`, `tamper`, `battery_low`, `battery_voltage`, `active`, `rssi`
 
+### Locks (door lock outputs)
+
+One entity per output whose `output_type` integer is listed in `OUTPUT_TYPES_LOCK` in `const.py`:
+
+| Entity | Description |
+|--------|-------------|
+| `lock.<output_name>` | Lock / unlock the door |
+
+**Attributes:** `output_id`, `output_type`, `tamper`, `battery_low`, `battery_voltage`, `rssi`
+
+### Sirens (siren outputs)
+
+One entity per output whose `output_type` integer is listed in `OUTPUT_TYPES_SIREN` in `const.py`:
+
+| Entity | Description |
+|--------|-------------|
+| `siren.<output_name>` | Activate / silence the siren |
+
+**Attributes:** `output_id`, `output_type`, `tamper`, `battery_low`, `battery_voltage`, `rssi`
+
+#### Mapping output types to the correct platform
+
+By default all outputs appear as `switch.*`. To promote a door lock or siren to its proper entity type:
+
+1. Go to **Developer tools → States** in Home Assistant and find the existing `switch.<name>` entity.
+2. Note the `output_type` integer in its attributes.
+3. Add that integer to `OUTPUT_TYPES_LOCK` or `OUTPUT_TYPES_SIREN` in `custom_components/crow_shepherd/const.py`.
+4. Restart Home Assistant — the output will now be a `lock.*` or `siren.*` entity.
+
+```python
+# Example values — replace with the integers from your panel:
+OUTPUT_TYPES_LOCK: Final[frozenset[int]] = frozenset({10})
+OUTPUT_TYPES_SIREN: Final[frozenset[int]] = frozenset({2, 7})
+```
+
 ### Switches (outputs)
 
-One entity per output:
+One entity per output not claimed by the lock or siren platform:
 
 | Entity | Description |
 |--------|-------------|
