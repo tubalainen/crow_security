@@ -22,7 +22,7 @@ A Home Assistant custom integration for Crow alarm panels that connects to Crow 
 ## Requirements
 
 - Home Assistant 2024.11 or newer
-- `crow_security_ng >= 0.2.3` (installed automatically)
+- `crow_security_ng >= 0.2.4` (installed automatically)
 
 The integration icon is shipped in `custom_components/crow_shepherd/brand/` and is shown by Home Assistant 2026.3 or newer. Older versions work normally but display a placeholder icon.
 
@@ -108,6 +108,8 @@ One entity per output whose `output_type` integer is listed in `OUTPUT_TYPES_SIR
 | `siren.<output_name>` | Activate / silence the siren |
 
 **Attributes:** `output_id`, `output_type`, `tamper`, `battery_low`, `battery_voltage`, `rssi`
+
+> **Note:** Siren entities are **disabled by default**. To use them, go to **Settings → Devices & Services → Crow Shepherd**, open the device, find the siren entity, and click **Enable**.
 
 #### Mapping output types to the correct platform
 
