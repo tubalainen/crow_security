@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from crow_security_ng.models import ConnectionInterface, Measurement
+from crow_security_ng.models import ConnectionInterface, Measurement, Zone
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -16,7 +16,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import SIGNAL_STRENGTH_DECIBELS_MILLIWATT
+from homeassistant.const import SIGNAL_STRENGTH_DECIBELS_MILLIWATT, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -80,7 +80,7 @@ async def async_setup_entry(
         DATA_COORDINATOR
     ]
 
-    entities: list[CrowShepherdMeasurementSensor] = []
+    entities: list[SensorEntity] = []
     for measurement in coordinator.data.measurements:
         dect_interface = measurement.dect_interface
         if dect_interface not in _DECT_MAP:
@@ -92,6 +92,10 @@ async def async_setup_entry(
             )
             continue
         entities.append(CrowShepherdMeasurementSensor(coordinator, measurement))
+
+    for zone in coordinator.data.zones:
+        if zone.temperature is not None:
+            entities.append(CrowShepherdZoneTemperatureSensor(coordinator, zone))
 
     async_add_entities(entities)
 
@@ -296,3 +300,46 @@ class CrowShepherdMeasurementSensor(
             if measurement.panel_time
             else None,
         }
+
+
+class CrowShepherdZoneTemperatureSensor(
+    CoordinatorEntity[CrowShepherdCoordinator],
+    SensorEntity,
+):
+    """Temperature sensor sourced directly from a zone's zone-list entry."""
+
+    _attr_has_entity_name = True
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(
+        self,
+        coordinator: CrowShepherdCoordinator,
+        zone: Zone,
+    ) -> None:
+        super().__init__(coordinator)
+        self._zone_id = zone.id
+        self._attr_unique_id = f"{coordinator.hub.mac}_zone_{zone.id}_temperature"
+        self._attr_name = f"{zone.name} Temperature"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        panel = self.coordinator.hub.panel
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.coordinator.hub.mac)},
+            name=panel.name,
+            manufacturer="Crow",
+            model=panel.firmware_version or "Alarm Panel",
+        )
+
+    def _get_zone(self) -> Zone | None:
+        return next(
+            (z for z in self.coordinator.data.zones if z.id == self._zone_id),
+            None,
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        zone = self._get_zone()
+        return zone.temperature if zone is not None else None

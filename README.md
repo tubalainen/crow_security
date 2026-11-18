@@ -96,6 +96,16 @@ One entity per output:
 
 **Attributes:** `output_id`, `output_type`, `tamper`, `battery_low`, `battery_voltage`, `rssi`
 
+### Sensors (zone temperature)
+
+One entity per zone that reports a temperature value:
+
+| Entity | Description |
+|--------|-------------|
+| `sensor.<zone_name>_temperature` | Zone temperature (°C) |
+
+Panels expose a `temperature` field directly on each zone. This sensor is only created for zones where the field is present and non-null; zones without a temperature reading do not get a sensor entity.
+
 ### Sensors (DECT measurements)
 
 One entity per measurement type per smart device:
